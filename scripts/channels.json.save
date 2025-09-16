@@ -1,0 +1,23 @@
+[
+  {
+    "id": "SkillUp",
+    "url": "https://www.youtube.com/channel/UCZ7AeeVbyslLM_8-nVy2B8Q",
+    "limit": 2
+  },
+  {
+    "id": "HardwareUnboxedPodcast",
+    "url": "https://www.youtube.com/channel/UCqT8Vb3jweH6_tj2SarErfw",
+    "limit": 2
+  },
+  {
+    "id": "VergeCast",
+    "url": "https://youtube.com/playlist?list=PL39u5ZEfYDEO5PaNRWyqloGY6zzJ1fjBa&si=f00HRNsMxoXbN3Dr",
+    "limit": 2
+  },
+  {
+    "id": "DigitalFoundry",
+    "url": "https://youtube.com/playlist?list=PLY9cZ8nX4xmmJs_01xwUSwyzTNycA93pz&si=a-SnPsT6ZEZunR_a",
+    "limit": 2
+  }
+
+]

@@ -1,0 +1,16 @@
+# Python virtual environment
+venv/
+
+# Python cache files
+*.pyc
+__pycache__/
+
+# Service-generated directories
+downloads/
+feeds/
+artwork/
+
+# Sensitive and configuration files
+cookies.txt
+channels.json
+channels_kemono.json
