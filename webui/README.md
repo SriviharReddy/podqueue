@@ -14,6 +14,25 @@ A Streamlit-based web interface for managing your PodQueue YouTube to podcast co
 
 Then open your browser and go to `http://localhost:8501`
 
+## Running on a Remote Server
+
+To access the Web UI from another device when running on a remote server:
+
+1. Start the Web UI with network access:
+   ```bash
+   streamlit run app.py --server.address 0.0.0.0 --server.port 8501
+   ```
+
+2. Configure your server's firewall to allow connections on port 8501
+
+3. Access the Web UI from any device on the same network using:
+   `http://YOUR_SERVER_IP:8501`
+
+For production use, consider:
+- Using a reverse proxy (like Nginx) with SSL encryption
+- Setting up authentication to secure the Web UI
+- Using a process manager (like systemd or supervisor) to keep the Web UI running
+
 ## Features
 
 - Add and remove YouTube channels/playlists
@@ -43,6 +62,11 @@ streamlit run app.py
 ```
 
 The web interface will be available at `http://localhost:8501` by default.
+
+To make the Web UI accessible from other devices on your network:
+```bash
+streamlit run app.py --server.address 0.0.0.0 --server.port 8501
+```
 
 ## Configuration
 

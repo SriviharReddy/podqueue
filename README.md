@@ -32,6 +32,26 @@ This project provides a self-hosted service to convert YouTube channels into pod
    ```
 4. Open your browser and go to `http://localhost:8501`
 
+## Running on a Remote Server
+
+To access the Web UI from another device when running on a remote server:
+
+1. Start the Web UI with network access:
+   ```bash
+   cd webui
+   streamlit run app.py --server.address 0.0.0.0 --server.port 8501
+   ```
+
+2. Configure your server's firewall to allow connections on port 8501
+
+3. Access the Web UI from any device on the same network using:
+   `http://YOUR_SERVER_IP:8501`
+
+For production use, consider:
+- Using a reverse proxy (like Nginx) with SSL encryption
+- Setting up authentication to secure the Web UI
+- Using a process manager (like systemd or supervisor) to keep the Web UI running
+
 ## How it Works
 
 The service consists of two main components:
