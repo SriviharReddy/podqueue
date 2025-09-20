@@ -5,7 +5,15 @@ A Streamlit-based web interface for managing your PodQueue YouTube to podcast co
 ## Easy Setup for Beginners
 
 1. After cloning the repository, run `./setup.sh` to set up all dependencies
-2. To start the Web UI, run one of the following:
+
+2. **Export YouTube cookies (highly recommended)**:
+   *   Install the [Get cookies.txt locally](https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc) Chrome extension
+   *   Log into your YouTube account in Chrome
+   *   Use the extension to export your cookies as `cookies.txt`
+   *   Place the `cookies.txt` file in the project root directory
+   *   This helps avoid YouTube bot detection issues when adding @username URLs
+
+3. To start the Web UI, run one of the following:
    - `./webui/start.sh` - Standard start (local access only)
    - `./webui/start-network.sh` - Network mode (remote access)
    - `./webui/start-venv.sh` - Standard start using virtual environment

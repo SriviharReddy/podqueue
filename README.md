@@ -10,17 +10,24 @@ This project provides a self-hosted service to convert YouTube channels into pod
    cd podqueue
    ```
 
-2. Run the setup script:
+2. **Export YouTube cookies (highly recommended)**:
+   *   Install the [Get cookies.txt locally](https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc) Chrome extension
+   *   Log into your YouTube account in Chrome
+   *   Use the extension to export your cookies as `cookies.txt`
+   *   Place the `cookies.txt` file in the project root directory (`podqueue/cookies.txt`)
+   *   This helps avoid YouTube bot detection issues
+
+3. Run the setup script:
    ```bash
    ./setup.sh
    ```
 
-3. Start the Web UI:
+4. Start the Web UI:
    ```bash
    ./webui/start.sh
    ```
 
-4. Open your browser and go to `http://localhost:8501`
+5. Open your browser and go to `http://localhost:8501`
 
 ## Running on a Remote Server
 
