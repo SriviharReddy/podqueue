@@ -4,6 +4,7 @@ import os
 import subprocess
 import sys
 import platform
+import re
 from pathlib import Path
 
 # Configuration - Fix the path to point to the correct location
@@ -28,6 +29,40 @@ def save_channels(channels):
     with open(CHANNELS_FILE, 'w') as f:
         json.dump(channels, f, indent=2)
 
+def get_channel_id_from_url(url):
+    """Extract channel ID from a YouTube URL using yt-dlp"""
+    try:
+        # Use yt-dlp to get the channel ID
+        result = subprocess.run(
+            ["yt-dlp", "--print", "%(channel_id)s", "--playlist-end", "1", url],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            channel_id = result.stdout.strip()
+            # Convert to proper channel URL format
+            return f"https://www.youtube.com/channel/{channel_id}"
+        else:
+            return None
+    except Exception as e:
+        st.warning(f"Could not extract channel ID: {e}")
+        return None
+
+def convert_channel_url(url):
+    """Convert @username URLs to channel ID URLs if needed"""
+    # Check if it's an @username URL
+    if "@youtube.com/" in url or "/@" in url:
+        with st.spinner(f"Converting {url} to channel ID URL..."):
+            converted_url = get_channel_id_from_url(url)
+            if converted_url:
+                st.success(f"Converted to: {converted_url}")
+                return converted_url
+            else:
+                st.error("Failed to convert URL. Please check the URL or use a direct channel URL.")
+                return url
+    return url
+
 def add_channel(channel_id, url, limit):
     """Add a new channel to the channels.json file"""
     channels = load_channels()
@@ -38,10 +73,13 @@ def add_channel(channel_id, url, limit):
             st.warning(f"Channel with ID '{channel_id}' already exists!")
             return False
     
+    # Convert URL if it's an @username URL
+    converted_url = convert_channel_url(url)
+    
     # Add new channel
     new_channel = {
         "id": channel_id,
-        "url": url,
+        "url": converted_url,
         "limit": int(limit)
     }
     channels.append(new_channel)
@@ -300,6 +338,8 @@ with tab3:
     4. **Run Downloader**: Click "Run Downloader" to download new episodes
     5. **Generate Feeds**: Click "Run RSS Generator" to create podcast feeds
     6. **View Status**: Check the "Downloads" tab to see the status of your channels
+    
+    **Note**: You can use @username URLs (e.g., https://www.youtube.com/@Level1Linux) and they will be automatically converted to channel ID URLs.
     """)
     
     # Requirements
