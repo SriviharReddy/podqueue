@@ -6,7 +6,7 @@ import sys
 import platform
 from pathlib import Path
 
-# Configuration
+# Configuration - Fix the path to point to the correct location
 BASE_DIR = Path(__file__).parent.parent.absolute()
 SCRIPTS_DIR = BASE_DIR / "scripts"
 DOWNLOADS_DIR = BASE_DIR / "downloads"
@@ -23,6 +23,8 @@ def load_channels():
 
 def save_channels(channels):
     """Save channels to the channels.json file"""
+    # Ensure the scripts directory exists
+    SCRIPTS_DIR.mkdir(parents=True, exist_ok=True)
     with open(CHANNELS_FILE, 'w') as f:
         json.dump(channels, f, indent=2)
 
@@ -249,6 +251,7 @@ with tab3:
     st.info(f"Downloads Directory: {DOWNLOADS_DIR}")
     st.info(f"Feeds Directory: {FEEDS_DIR}")
     st.info(f"Artwork Directory: {ARTWORK_DIR}")
+    st.info(f"Channels File: {CHANNELS_FILE}")
     
     # Channels file
     st.subheader("Channels Configuration")
