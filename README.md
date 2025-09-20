@@ -17,6 +17,22 @@ This project also includes a Streamlit-based web interface (`webui/`) for easier
 
 ## Setup
 
+### Automated Setup (Recommended)
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/SriviharReddy/podqueue.git
+   cd podqueue
+   ```
+
+2. Run the automated setup script:
+   - On Windows: Double-click `setup.bat` or run `setup.bat` from the command line
+   - On Linux/macOS: Run `./setup.sh` from the terminal
+
+3. Follow the on-screen instructions
+
+### Manual Setup
+
 1.  **Prerequisites**:
     *   [yt-dlp](https://github.com/yt-dlp/yt-dlp)
     *   [jq](https://stedolan.github.io/jq/)
@@ -47,6 +63,14 @@ This project also includes a Streamlit-based web interface (`webui/`) for easier
     *   If you need to download videos that require a login, you can provide a `cookies.txt` file in the root of the project. The `downloader.sh` script will automatically use it.
 
 ## Web UI Setup
+
+### Automated Start
+
+1. Navigate to the webui directory:
+   - On Windows: Double-click `webui\start.bat`
+   - On Linux/macOS: Run `./webui/start.sh` from the terminal
+
+### Manual Start
 
 1. Navigate to the webui directory:
    ```bash
