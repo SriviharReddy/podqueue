@@ -25,8 +25,8 @@ This project also includes a Streamlit-based web interface (`webui/`) for easier
 
 2.  **Clone the repository**:
     ```bash
-    git clone https://github.com/your-username/yt2pod.git
-    cd yt2pod
+    git clone https://github.com/SriviharReddy/podqueue.git
+    cd podqueue
     ```
 
 3.  **Install Python dependencies**:
@@ -37,11 +37,8 @@ This project also includes a Streamlit-based web interface (`webui/`) for easier
 4.  **Configure the channels**:
     *   Copy `scripts/channels.json.example` to `scripts/channels.json`.
     *   Edit `scripts/channels.json` to add the YouTube channels you want to follow. Each entry should have an `id`, `url`, and `limit` (the maximum number of episodes to keep).
-    *   You can add playlists directly, but for channels, you need to get the channel ID. You can do this easily with `yt-dlp`. To get the channel ID for a channel with a custom URL (e.g., `https://www.youtube.com/@channelname`), you can use the following command:
-        ```bash
-        yt-dlp --print "%(channel_id)s" --playlist-end 1 "https://www.youtube.com/@channelname"
-        ```
-    *   The `url` in `channels.json` should be in the format `https://www.youtube.com/channel/CHANNEL_ID`.
+    *   You can add playlists directly, but for channels with @username URLs (e.g., `https://www.youtube.com/@channelname`), they will be automatically converted to channel ID URLs when using the Web UI.
+    *   The `url` in `channels.json` should be in the format `https://www.youtube.com/channel/CHANNEL_ID` for direct channel URLs.
 
 5.  **Set up the base directory**:
     *   The scripts expect to be run from a specific base directory. You will need to edit `downloader.sh` and `rss_generator.py` to set the `BASE_DIR` variable to the absolute path of the project directory.
