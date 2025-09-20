@@ -2,6 +2,36 @@
 
 This project provides a self-hosted service to convert YouTube channels into podcast feeds. It automatically downloads the latest videos from specified YouTube channels, converts them to audio, and generates RSS feeds that can be used with any podcast client.
 
+## Easy Setup for Beginners
+
+### Windows
+1. Download and install [Git for Windows](https://git-scm.com/download/win)
+2. Download and install [Python 3](https://www.python.org/downloads/)
+3. Clone the repository:
+   ```bash
+   git clone https://github.com/SriviharReddy/podqueue.git
+   cd podqueue
+   ```
+4. Double-click `setup.bat` to automatically install all dependencies
+5. Double-click `webui\start.bat` to start the Web UI
+6. Open your browser and go to `http://localhost:8501`
+
+### Linux/macOS
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/SriviharReddy/podqueue.git
+   cd podqueue
+   ```
+2. Run the setup script:
+   ```bash
+   ./setup.sh
+   ```
+3. Start the Web UI:
+   ```bash
+   ./webui/start.sh
+   ```
+4. Open your browser and go to `http://localhost:8501`
+
 ## How it Works
 
 The service consists of two main components:
@@ -15,23 +45,7 @@ The service is designed to be run on a server and can be automated with cron job
 
 This project also includes a Streamlit-based web interface (`webui/`) for easier management of your podcast channels and downloads.
 
-## Setup
-
-### Automated Setup (Recommended)
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/SriviharReddy/podqueue.git
-   cd podqueue
-   ```
-
-2. Run the automated setup script:
-   - On Windows: Double-click `setup.bat` or run `setup.bat` from the command line
-   - On Linux/macOS: Run `./setup.sh` from the terminal
-
-3. Follow the on-screen instructions
-
-### Manual Setup
+## Manual Setup
 
 1.  **Prerequisites**:
     *   [yt-dlp](https://github.com/yt-dlp/yt-dlp)
@@ -61,6 +75,7 @@ This project also includes a Streamlit-based web interface (`webui/`) for easier
 
 6.  **(Optional) Cookies**:
     *   If you need to download videos that require a login, you can provide a `cookies.txt` file in the root of the project. The `downloader.sh` script will automatically use it.
+    *   To easily export cookies from your browser, you can use the [Get cookies.txt locally](https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc) Chrome extension.
 
 ## Web UI Setup
 

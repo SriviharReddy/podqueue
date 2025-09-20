@@ -2,6 +2,18 @@
 
 A Streamlit-based web interface for managing your PodQueue YouTube to podcast converter.
 
+## Easy Setup for Beginners
+
+### Windows
+1. After cloning the repository, double-click `setup.bat` in the main directory to set up all dependencies
+2. To start the Web UI, double-click `webui\start.bat`
+
+### Linux/macOS
+1. After cloning the repository, run `./setup.sh` to set up all dependencies
+2. To start the Web UI, run `./webui/start.sh`
+
+Then open your browser and go to `http://localhost:8501`
+
 ## Features
 
 - Add and remove YouTube channels/playlists
@@ -11,16 +23,6 @@ A Streamlit-based web interface for managing your PodQueue YouTube to podcast co
 - Generate RSS feeds for your podcasts
 - View status of your channels and downloads
 - Easy management through a web interface
-
-## Automated Setup and Start
-
-### Windows
-1. After cloning the repository, double-click `setup.bat` in the main directory to set up all dependencies
-2. To start the Web UI, double-click `webui\start.bat`
-
-### Linux/macOS
-1. After cloning the repository, run `./setup.sh` to set up all dependencies
-2. To start the Web UI, run `./webui/start.sh`
 
 ## Manual Setup
 
@@ -49,3 +51,7 @@ The web UI uses the same `channels.json` file as the main PodQueue application, 
 ## @username URL Support
 
 The Web UI automatically converts YouTube @username URLs (e.g., https://www.youtube.com/@Level1Linux) to channel ID URLs that yt-dlp can recognize. This requires yt-dlp to be installed and accessible from the command line.
+
+## Exporting Cookies
+
+If you need to download videos that require a login, you can export cookies from your browser using the [Get cookies.txt locally](https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc) Chrome extension. Save the exported cookies.txt file in the root directory of the project.
