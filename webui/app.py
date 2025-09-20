@@ -190,11 +190,13 @@ def authenticate_user():
                     with open(AUTH_FILE, 'w') as f:
                         json.dump({"auth_disabled": True}, f)
                     st.session_state.authenticated = True
+                    st.session_state.username = "admin"
                     st.success("Authentication skipped. Redirecting...")
                     st.rerun()
                 elif password and password == confirm_password:
                     save_auth_config(username, password)
                     st.session_state.authenticated = True
+                    st.session_state.username = username
                     st.success("Password set successfully! Redirecting...")
                     st.rerun()
                 elif password != confirm_password:
@@ -205,6 +207,7 @@ def authenticate_user():
         # Regular login
         if auth_config.get("auth_disabled", False):
             st.session_state.authenticated = True
+            st.session_state.username = "admin"
             st.rerun()
         
         st.subheader("Login to PodQueue Web UI")
@@ -217,6 +220,7 @@ def authenticate_user():
             if submitted:
                 if check_password(username, password):
                     st.session_state.authenticated = True
+                    st.session_state.username = username
                     st.success("Login successful! Redirecting...")
                     st.rerun()
                 else:
@@ -312,8 +316,10 @@ else:
     # Add logout button in sidebar
     with st.sidebar:
         st.title("🎧 PodQueue Manager")
+        st.write(f"Logged in as: **{st.session_state.username}**")
         if st.button("🚪 Logout"):
             st.session_state.authenticated = False
+            st.session_state.username = None
             st.rerun()
     
     st.title("🎧 PodQueue Manager")
