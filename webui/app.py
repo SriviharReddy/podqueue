@@ -163,7 +163,7 @@ with tab1:
                 if channel_id and url:
                     if add_channel(channel_id, url, limit):
                         st.success(f"Channel '{channel_id}' added successfully!")
-                        st.experimental_rerun()
+                        st.rerun()
                     else:
                         st.error("Failed to add channel. Check if it already exists.")
                 else:
@@ -187,7 +187,7 @@ with tab1:
             with col4:
                 if st.button("Remove", key=f"remove_{channel['id']}"):
                     remove_channel(channel['id'])
-                    st.experimental_rerun()
+                    st.rerun()
 
 # Downloads Tab
 with tab2:
