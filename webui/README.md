@@ -82,6 +82,16 @@ The web UI uses the same `channels.json` file as the main PodQueue application, 
 
 The Web UI automatically converts YouTube @username URLs (e.g., https://www.youtube.com/@Level1Linux) to channel ID URLs that yt-dlp can recognize. This requires yt-dlp to be installed and accessible from the command line.
 
-## Exporting Cookies
+## Exporting Cookies (Highly Recommended)
 
-If you need to download videos that require a login, you can export cookies from your browser using the [Get cookies.txt locally](https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc) Chrome extension. Save the exported cookies.txt file in the root directory of the project.
+It is highly recommended to provide a `cookies.txt` file to avoid bot detection issues with YouTube:
+- Without cookies, you may encounter errors when trying to access certain YouTube content
+- YouTube often blocks automated access and requires authentication to confirm you're not a bot
+- To easily export cookies from your browser, use the [Get cookies.txt locally](https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc) Chrome extension
+- Save the exported cookies.txt file in the root directory of the project
+- The Web UI and downloader will automatically use this file for authentication
+
+Without cookies, you may see errors like:
+```
+ERROR: [youtube] XXXXXX: Sign in to confirm you're not a bot
+```

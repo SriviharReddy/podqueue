@@ -83,9 +83,10 @@ This project also includes a Streamlit-based web interface (`webui/`) for easier
 5.  **Set up the base directory**:
     *   The scripts expect to be run from a specific base directory. You will need to edit `downloader.sh` and `rss_generator.py` to set the `BASE_DIR` variable to the absolute path of the project directory.
 
-6.  **(Optional) Cookies**:
-    *   If you need to download videos that require a login, you can provide a `cookies.txt` file in the root of the project. The `downloader.sh` script will automatically use it.
+6.  **(Recommended) Cookies**:
+    *   It is highly recommended to provide a `cookies.txt` file in the root of the project to avoid bot detection issues with YouTube. The `downloader.sh` script will automatically use it.
     *   To easily export cookies from your browser, you can use the [Get cookies.txt locally](https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc) Chrome extension.
+    *   Without cookies, you may encounter errors when trying to access certain YouTube content that requires authentication or when YouTube detects automated access.
 
 ## Web UI Setup
 
