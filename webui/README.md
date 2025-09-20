@@ -5,7 +5,11 @@ A Streamlit-based web interface for managing your PodQueue YouTube to podcast co
 ## Easy Setup for Beginners
 
 1. After cloning the repository, run `./setup.sh` to set up all dependencies
-2. To start the Web UI, run `./webui/start.sh`
+2. To start the Web UI, run one of the following:
+   - `./webui/start.sh` - Standard start (local access only)
+   - `./webui/start-network.sh` - Network mode (remote access)
+   - `./webui/start-venv.sh` - Standard start using virtual environment
+   - `./webui/start-venv-network.sh` - Network mode using virtual environment
 
 Then open your browser and go to `http://localhost:8501`
 
@@ -15,7 +19,7 @@ To access the Web UI from another device when running on a remote server:
 
 1. Start the Web UI with network access:
    ```bash
-   streamlit run app.py --server.address 0.0.0.0 --server.port 8501
+   ./webui/start-venv-network.sh
    ```
 
 2. Configure your server's firewall to allow connections on port 8501
@@ -59,17 +63,16 @@ The Web UI includes built-in password protection:
 
 ## Usage
 
-Run the Streamlit app:
+Run the Streamlit app using one of the provided scripts:
 ```bash
-streamlit run app.py
+# Local access only
+./webui/start-venv.sh
+
+# Network access (remote devices)
+./webui/start-venv-network.sh
 ```
 
 The web interface will be available at `http://localhost:8501` by default.
-
-To make the Web UI accessible from other devices on your network:
-```bash
-streamlit run app.py --server.address 0.0.0.0 --server.port 8501
-```
 
 ## Configuration
 
