@@ -54,6 +54,16 @@ def remove_channel(channel_id):
     channels = [channel for channel in channels if channel['id'] != channel_id]
     save_channels(channels)
 
+def update_channel_limit(channel_id, new_limit):
+    """Update the limit of an existing channel"""
+    channels = load_channels()
+    for channel in channels:
+        if channel['id'] == channel_id:
+            channel['limit'] = int(new_limit)
+            save_channels(channels)
+            return True
+    return False
+
 def run_downloader():
     """Run the downloader script"""
     try:
@@ -177,17 +187,31 @@ with tab1:
         st.info("No channels configured yet. Add a channel using the form above.")
     else:
         for channel in channels:
-            col1, col2, col3, col4 = st.columns([3, 3, 1, 1])
-            with col1:
-                st.write(f"**{channel['id']}**")
-            with col2:
-                st.write(channel['url'])
-            with col3:
-                st.write(f"Limit: {channel['limit']}")
-            with col4:
-                if st.button("Remove", key=f"remove_{channel['id']}"):
-                    remove_channel(channel['id'])
-                    st.rerun()
+            with st.expander(f"📁 {channel['id']}", expanded=False):
+                col1, col2, col3, col4, col5 = st.columns([3, 3, 1, 1, 1])
+                with col1:
+                    st.write(f"**{channel['id']}**")
+                with col2:
+                    st.write(channel['url'])
+                with col3:
+                    # Edit limit functionality
+                    new_limit = st.number_input(
+                        "Limit", 
+                        min_value=1, 
+                        value=channel['limit'], 
+                        key=f"limit_{channel['id']}"
+                    )
+                with col4:
+                    if st.button("Update", key=f"update_{channel['id']}"):
+                        if update_channel_limit(channel['id'], new_limit):
+                            st.success("Limit updated successfully!")
+                            st.rerun()
+                        else:
+                            st.error("Failed to update limit.")
+                with col5:
+                    if st.button("Remove", key=f"remove_{channel['id']}"):
+                        remove_channel(channel['id'])
+                        st.rerun()
 
 # Downloads Tab
 with tab2:
@@ -271,9 +295,11 @@ with tab3:
     st.subheader("Instructions")
     st.markdown("""
     1. **Add Channels**: Use the "Add New Channel" form to add YouTube channels or playlists
-    2. **Run Downloader**: Click "Run Downloader" to download new episodes
-    3. **Generate Feeds**: Click "Run RSS Generator" to create podcast feeds
-    4. **View Status**: Check the "Downloads" tab to see the status of your channels
+    2. **Edit Limits**: Change the episode limit for existing channels and click "Update"
+    3. **Remove Channels**: Click "Remove" to delete a channel
+    4. **Run Downloader**: Click "Run Downloader" to download new episodes
+    5. **Generate Feeds**: Click "Run RSS Generator" to create podcast feeds
+    6. **View Status**: Check the "Downloads" tab to see the status of your channels
     """)
     
     # Requirements
