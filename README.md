@@ -1,171 +1,76 @@
-# YouTube to Podcast Service (Ubuntu)
+# PodQueue
 
-This service automates the process of downloading audio from YouTube channels and playlists and converting them into a podcast-style RSS feed.
+This project provides a self-hosted service to convert YouTube channels into podcast feeds. It automatically downloads the latest videos from specified YouTube channels, converts them to audio, and generates RSS feeds that can be used with any podcast client.
 
-This guide is tailored for an Ubuntu environment.
+## How it Works
 
-## Prerequisites (Ubuntu)
+The service consists of two main components:
 
-Before you begin, ensure you have the following software installed on your system. You can install them using `apt`:
+1.  **Downloader (`downloader.sh`)**: A shell script that uses `yt-dlp` to download the latest videos from the YouTube channels specified in `scripts/channels.json`. It converts the videos to M4A audio files and stores them in the `downloads` directory.
+2.  **RSS Generator (`rss_generator.py`)**: A Python script that generates RSS feeds for each channel. It reads the downloaded audio files and their metadata to create the feeds in the `feeds` directory.
 
-```bash
-sudo apt update
-sudo apt install -y python3-venv python3-pip jq
-```
-
-Next, install or update `yt-dlp`:
-
-```bash
-sudo pip install -U yt-dlp
-```
+The service is designed to be run on a server and can be automated with cron jobs.
 
 ## Setup
 
-1.  **Create a Python Virtual Environment:**
+1.  **Prerequisites**:
+    *   [yt-dlp](https://github.com/yt-dlp/yt-dlp)
+    *   [jq](https://stedolan.github.io/jq/)
+    *   Python 3
+    *   `pip`
 
-    It's best practice to use a virtual environment to manage Python dependencies.
-
+2.  **Clone the repository**:
     ```bash
-    python3 -m venv venv
+    git clone https://github.com/your-username/yt2pod.git
+    cd yt2pod
     ```
 
-2.  **Activate the Virtual Environment:**
-
-    ```bash
-    source venv/bin/activate
-    ```
-
-3.  **Install Python Dependencies:**
-
-    Install the required Python packages from the `scripts/requirements.txt` file.
-
+3.  **Install Python dependencies**:
     ```bash
     pip install -r scripts/requirements.txt
     ```
 
-## Configuration
+4.  **Configure the channels**:
+    *   Copy `scripts/channels.json.example` to `scripts/channels.json`.
+    *   Edit `scripts/channels.json` to add the YouTube channels you want to follow. Each entry should have an `id`, `url`, and `limit` (the maximum number of episodes to keep).
+    *   You can add playlists directly, but for channels, you need to get the channel ID. You can do this easily with `yt-dlp`. To get the channel ID for a channel with a custom URL (e.g., `https://www.youtube.com/@channelname`), you can use the following command:
+        ```bash
+        yt-dlp --print "%(channel_id)s" --playlist-end 1 "https://www.youtube.com/@channelname"
+        ```
+    *   The `url` in `channels.json` should be in the format `https://www.youtube.com/channel/CHANNEL_ID`.
 
-The `scripts/channels.json` file is where you define the YouTube channels and playlists to process.
+5.  **Set up the base directory**:
+    *   The scripts expect to be run from a specific base directory. You will need to edit `downloader.sh` and `rss_generator.py` to set the `BASE_DIR` variable to the absolute path of the project directory.
 
-Each entry is an object with the following keys:
-
--   `id`: A unique identifier for the channel. This is used for naming directories and files.
--   `url`: The URL of the YouTube channel or playlist.
--   `limit`: The maximum number of recent videos to keep for this feed.
-
-**Example `channels.json`:**
-
-```json
-[
-  {
-    "id": "SkillUpYT",
-    "url": "https://www.youtube.com/channel/UCZ7AeeVbyslLM_8-nVy2B8Q",
-    "limit": 12
-  },
-  {
-    "id": "TheVergeCast",
-    "url": "https://youtube.com/playlist?list=PL39u5ZEfYDEO5PaNRWyqloGY6zzJ1fjBa&si=qNN0R_3Bwylkcbje",
-    "limit": 6
-  }
-]
-```
+6.  **(Optional) Cookies**:
+    *   If you need to download videos that require a login, you can provide a `cookies.txt` file in the root of the project. The `downloader.sh` script will automatically use it.
 
 ## Usage
 
-The service has two main scripts that should be run in order.
-
-1.  **Download Audio (`downloader.sh`):**
-
-    This script reads `channels.json` and downloads the audio from the specified sources into the `downloads` directory.
-
+1.  **Run the downloader**:
     ```bash
-    bash scripts/downloader.sh
+    ./scripts/downloader.sh
     ```
+    This will download the latest videos from the configured channels.
 
-2.  **Generate RSS Feeds (`rss_generator.py`):**
-
-    After downloading, this script generates the RSS feeds and places them in the `feeds` directory.
-
+2.  **Run the RSS generator**:
     ```bash
     python3 scripts/rss_generator.py
     ```
+    This will generate the RSS feeds in the `feeds` directory.
 
-    *(Ensure your virtual environment is activated before running.)*
+3.  **Serve the feeds**:
+    *   The generated feeds are located in the `feeds` directory. You will need to serve this directory with a web server (e.g., Nginx, Apache) to access them from your podcast client. The `BASE_URL` in `rss_generator.py` should be set to the public URL of your server.
 
-### Scheduling with Cron
+## Automation
 
-To automate the process, you can schedule these scripts to run periodically using `cron`.
+You can automate the process of downloading and generating feeds using cron jobs. For example, to run the downloader every hour and the RSS generator every two hours, you could add the following to your crontab:
 
-1.  Open your crontab for editing: `crontab -e`
-2.  Add the following lines to run the downloader every hour and the RSS generator every two hours:
-
-    ```crontab
-    0 * * * * /bin/bash /path/to/your/my_podcast_service/scripts/downloader.sh
-    0 */2 * * * /path/to/your/my_podcast_service/venv/bin/python /path/to/your/my_podcast_service/scripts/rss_generator.py
-    ```
-
-    *Remember to replace `/path/to/your/my_podcast_service` with the actual absolute path to your project directory.*
-
-## Managing Podcasts
-
-### Deleting a Podcast
-
-The `delete_podcast.sh` script allows you to remove a podcast and all its associated files.
-
-**Usage:**
-
-```bash
-bash scripts/delete_podcast.sh <podcast_id>
+```
+0 * * * * /path/to/your/project/scripts/downloader.sh
+0 */2 * * * /path/to/your/project/scripts/rss_generator.py
 ```
 
--   `<podcast_id>`: The `id` of the podcast you want to delete (as defined in `channels.json`).
+## Contributing
 
-The script will delete the downloads, feed file, and artwork. It will then ask for confirmation before removing the podcast's entry from `channels.json`.
-
-## The "Kemono" Service
-
-You will notice a set of scripts with `_kemono` in their names (`downloader_kemono.sh`, `rss_generator_kemono.py`, `delete_podcast_kemono.sh`) and a `channels_kemono.json` file.
-
-This is a parallel service that functions identically to the YouTube service but is configured to work with a different source. It uses `channels_kemono.json` for its list of sources and operates independently from the main YouTube podcast service.
-
-## Serving the Podcast
-
-To listen to your podcasts, you need a web server to make the `feeds`, `downloads`, and `artwork` directories accessible over the network.
-
-Here is a sample Nginx configuration that you can adapt. Create a new file in `/etc/nginx/sites-available/`, for example, `podcast.conf`:
-
-```nginx
-server {
-    listen 80;
-    server_name your_domain_or_ip;
-
-    root /path/to/your/my_podcast_service;
-
-    location /feeds {
-        alias /path/to/your/my_podcast_service/feeds;
-        try_files $uri $uri/ =404;
-    }
-
-    location /downloads {
-        alias /path/to/your/my_podcast_service/downloads;
-        try_files $uri $uri/ =404;
-    }
-
-    location /artwork {
-        alias /path/to/your/my_podcast_service/artwork;
-        try_files $uri $uri/ =404;
-    }
-}
-```
-
--   Replace `your_domain_or_ip` with your server's public IP address or domain name.
--   Replace `/path/to/your/my_podcast_service` with the absolute path to your project directory.
-
-Enable the site by creating a symbolic link and then restart Nginx:
-
-```bash
-sudo ln -s /etc/nginx/sites-available/podcast.conf /etc/nginx/sites-enabled/
-sudo systemctl restart nginx
-```
-
-You can then access your RSS feeds at `http://your_domain_or_ip/feeds/<podcast_id>.xml`.
+Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.

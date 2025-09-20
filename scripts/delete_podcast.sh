@@ -1,63 +1,49 @@
 #!/bin/bash
 
+# This script deletes a podcast, including all its downloaded files, artwork, and the RSS feed.
+
+# Usage: ./delete_podcast.sh <podcast_id>
+
 if [ -z "$1" ]; then
-    echo "Usage: $0 <podcast_name>"
-    echo "Example: $0 VergeCast"
+  echo "Usage: $0 <podcast_id>"
+  exit 1
+fi
+
+PODCAST_ID=$1
+BASE_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/..
+
+DOWNLOAD_DIR="$BASE_DIR/downloads/$PODCAST_ID"
+ARTWORK_FILE="$BASE_DIR/artwork/$PODCAST_ID.jpg"
+FEED_FILE="$BASE_DIR/feeds/$PODCAST_ID.xml"
+
+read -p "Are you sure you want to delete all files for podcast '$PODCAST_ID'? (y/n) " -n 1 -r
+echo
+if [[ ! $REPLY =~ ^[Yy]$ ]]
+then
     exit 1
 fi
 
-PODCAST_NAME="$1"
-BASE_DIR="/home/ubuntu/my_podcast_service"
-
-# Define paths
-DOWNLOADS_DIR="$BASE_DIR/downloads/$PODCAST_NAME"
-FEEDS_FILE="$BASE_DIR/feeds/$PODCAST_NAME.xml"
-ARTWORK_FILE="$BASE_DIR/artwork/$PODCAST_NAME.jpg"
-CHANNELS_FILE="$BASE_DIR/scripts/channels.json"
-
-echo "Deleting podcast: $PODCAST_NAME"
-
-# Delete downloads directory
-if [ -d "$DOWNLOADS_DIR" ]; then
-    echo "Deleting downloads directory: $DOWNLOADS_DIR"
-    sudo rm -rf "$DOWNLOADS_DIR"
-else
-    echo "Downloads directory not found: $DOWNLOADS_DIR"
+if [ -d "$DOWNLOAD_DIR" ]; then
+  echo "Deleting download directory: $DOWNLOAD_DIR"
+  rm -rf "$DOWNLOAD_DIR"
 fi
 
-# Delete feed file
-if [ -f "$FEEDS_FILE" ]; then
-    echo "Deleting feed file: $FEEDS_FILE"
-    sudo rm -f "$FEEDS_FILE"
-else
-    echo "Feed file not found: $FEEDS_FILE"
-fi
-
-# Delete artwork file
 if [ -f "$ARTWORK_FILE" ]; then
-    echo "Deleting artwork file: $ARTWORK_FILE"
-    sudo rm -f "$ARTWORK_FILE"
-else
-    echo "Artwork file not found: $ARTWORK_FILE"
+  echo "Deleting artwork file: $ARTWORK_FILE"
+  rm -f "$ARTWORK_FILE"
 fi
 
-# Ask if user wants to remove from channels.json
-read -p "Do you want to remove $PODCAST_NAME from channels.json? (y/n): " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    if [ -f "$CHANNELS_FILE" ]; then
-        echo "Removing from channels.json..."
-        # Create a temporary file
-        TEMP_FILE=$(mktemp)
-        # Remove the podcast entry using jq
-        jq "del(.[] | select(.id == \"$PODCAST_NAME\"))" "$CHANNELS_FILE" > "$TEMP_FILE"
-        # Replace the original file
-        sudo mv "$TEMP_FILE" "$CHANNELS_FILE"
-        sudo chown ubuntu:ubuntu "$CHANNELS_FILE"
-        echo "Removed $PODCAST_NAME from channels.json"
-    else
-        echo "channels.json file not found"
-    fi
+if [ -f "$FEED_FILE" ]; then
+  echo "Deleting feed file: $FEED_FILE"
+  rm -f "$FEED_FILE"
 fi
 
-echo "Deletion complete for podcast: $PODCAST_NAME"
+# Remove the channel from channels.json
+TEMP_CHANNELS_FILE="$BASE_DIR/scripts/channels.json.tmp"
+
+if [ -f "$BASE_DIR/scripts/channels.json" ]; then
+    echo "Removing $PODCAST_ID from channels.json"
+    jq 'del(.[] | select(.id == "'$PODCAST_ID''))' "$BASE_DIR/scripts/channels.json" > "$TEMP_CHANNELS_FILE" && mv "$TEMP_CHANNELS_FILE" "$BASE_DIR/scripts/channels.json"
+fi
+
+echo "Podcast '$PODCAST_ID' deleted."

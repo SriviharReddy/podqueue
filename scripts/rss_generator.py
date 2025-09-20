@@ -7,11 +7,12 @@ import xml.etree.ElementTree as ET
 import re
 
 # --- CONFIGURATION ---
-BASE_DIR = "/home/ubuntu/my_podcast_service"
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DOWNLOADS_DIR = os.path.join(BASE_DIR, "downloads")
 FEEDS_DIR = os.path.join(BASE_DIR, "feeds")
 ARTWORK_DIR = os.path.join(BASE_DIR, "artwork")
-BASE_URL = "http://152.67.182.84"
+# IMPORTANT: Set this to the publicly accessible URL of your server where the feeds will be hosted.
+BASE_URL = "http://your-server-address.com"
 
 # Ensure artwork directory exists
 os.makedirs(ARTWORK_DIR, exist_ok=True)
@@ -184,53 +185,63 @@ def parse_chapters_from_description(description):
     return chapters
 
 # --- MAIN SCRIPT LOGIC ---
-def generate_rss(feed_name, podcast_dir):
+def generate_rss(feed_name, podcast_dir, max_episodes=None, author=None, description=None, title=None, artwork=None, sub_lang=None):
     print(f"--- Processing feed for: {feed_name} ---")
-    channel_title = feed_name
+    channel_title = title if title else feed_name
+    channel_author = author if author else channel_title # Use provided author or fallback to channel title
+    channel_desc = description if description else f"A podcast stream of audio from the Youtube Channel {channel_title}"
+
     # Use the actual channel name in the description instead of feed_name
     channel_desc = f"A podcast stream of audio from the Youtube Channel"
     local_image_url = None
     
-    # Look for channel info JSON files - find the one with the longest filename
-    all_info_files = glob.glob(os.path.join(podcast_dir, "*.info.json"))
-    channel_info_files = []
-    
-    if all_info_files:
-        # Sort files by name length (descending) to get the longest filename first
-        all_info_files.sort(key=lambda x: len(os.path.basename(x)), reverse=True)
-        channel_info_files = [all_info_files[0]]
-        print(f"Found channel info file with longest name: {channel_info_files[0]}")
-    
-    if channel_info_files:
-        with open(channel_info_files[0], "r", encoding='utf-8') as f:
-            try:
-                data = json.load(f)
-                # Get the actual channel name
-                channel_title = data.get("channel", feed_name)
-                # Update the description with the actual channel name
-                channel_desc = f"A podcast stream of audio from the Youtube Channel {channel_title}"
-                
-                # Get the best thumbnail - highest resolution square image with fallback
-                image_to_download = get_best_thumbnail(data.get("thumbnails", []))
-                
-                if image_to_download:
-                    print(f"Using thumbnail URL: {image_to_download}")
-                    local_image_url = cache_artwork(feed_name, image_to_download)
-                else:
-                    print(f"No thumbnail found for {feed_name}")
-                
-            except Exception as e:
-                print(f"Error reading channel info JSON for {feed_name}: {e}")
+    if artwork:
+        local_image_url = cache_artwork(feed_name, artwork)
     else:
-        print(f"No channel info file found for {feed_name}")
+        # Look for channel info JSON files - find the one with the longest filename
+        all_info_files = glob.glob(os.path.join(podcast_dir, "*.info.json"))
+        channel_info_files = []
+        
+        if all_info_files:
+            # Sort files by name length (descending) to get the longest filename first
+            all_info_files.sort(key=lambda x: len(os.path.basename(x)), reverse=True)
+            channel_info_files = [all_info_files[0]]
+            print(f"Found channel info file with longest name: {channel_info_files[0]}")
+        
+        if channel_info_files:
+            with open(channel_info_files[0], "r", encoding='utf-8') as f:
+                try:
+                    data = json.load(f)
+                    # Get the actual channel name
+                    if not title:
+                        channel_title = data.get("channel", feed_name)
+                    # Update the description with the actual channel name
+                    if not description:
+                        channel_desc = f"A podcast stream of audio from the Youtube Channel {channel_title}"
+                    
+                    # Get the best thumbnail - highest resolution square image with fallback
+                    image_to_download = get_best_thumbnail(data.get("thumbnails", []))
+                    
+                    if image_to_download:
+                        print(f"Using thumbnail URL: {image_to_download}")
+                        local_image_url = cache_artwork(feed_name, image_to_download)
+                    else:
+                        print(f"No thumbnail found for {feed_name}")
+                    
+                except Exception as e:
+                    print(f"Error reading channel info JSON for {feed_name}: {e}")
+        else:
+            print(f"No channel info file found for {feed_name}")
     
     # Create RSS with namespaces
     ET.register_namespace("itunes", "http://www.itunes.com/dtds/podcast-1.0.dtd")
     ET.register_namespace("psc", "http://podlove.org/simple-chapters")
+    ET.register_namespace("media", "http://search.yahoo.com/mrss/")
     
     rss = ET.Element("rss", version="2.0", attrib={
         "xmlns:itunes": "http://www.itunes.com/dtds/podcast-1.0.dtd",
-        "xmlns:psc": "http://podlove.org/simple-chapters"
+        "xmlns:psc": "http://podlove.org/simple-chapters",
+        "xmlns:media": "http://search.yahoo.com/mrss/"
     })
     
     channel = ET.SubElement(rss, "channel")
@@ -239,7 +250,7 @@ def generate_rss(feed_name, podcast_dir):
     ET.SubElement(channel, "description").text = channel_desc
     ET.SubElement(channel, "language").text = "en-US"
     ET.SubElement(channel, "lastBuildDate").text = rfc2822_format(datetime.datetime.now(datetime.UTC))
-    ET.SubElement(channel, "itunes:author").text = channel_title
+    ET.SubElement(channel, "itunes:author").text = channel_author
     
     if local_image_url:
         ET.SubElement(channel, "itunes:image", href=local_image_url)
@@ -253,6 +264,9 @@ def generate_rss(feed_name, podcast_dir):
         key=lambda f: os.path.getmtime(os.path.join(podcast_dir, f)),
         reverse=True
     )
+
+    if max_episodes is not None:
+        audio_files = audio_files[:max_episodes]
     
     print(f"Found {len(audio_files)} audio files")
     
@@ -326,6 +340,13 @@ def generate_rss(feed_name, podcast_dir):
                         ET.SubElement(chapters_element, "psc:chapter", 
                                     attrib={"start": chapter['time'], "title": chapter['title']})
                     print(f"Added {len(chapters)} chapters for: {sanitized_title}")
+
+                # Add subtitles if found
+                sub_file_path = os.path.join(podcast_dir, f"{video_id}.{sub_lang}.vtt")
+                if os.path.exists(sub_file_path):
+                    sub_url = f"{BASE_URL}/downloads/{feed_name}/{video_id}.{sub_lang}.vtt"
+                    ET.SubElement(item, "media:subTitle", href=sub_url, lang=sub_lang, type="text/vtt")
+                    print(f"Added subtitles for: {sanitized_title}")
                 
             except Exception as e:
                 print(f"Error reading episode info for {video_id}: {e}")
@@ -348,10 +369,29 @@ def generate_rss(feed_name, podcast_dir):
     print(f"Generated RSS feed: {output_path}")
 
 def main():
-    for podcast_name in os.listdir(DOWNLOADS_DIR):
-        podcast_dir = os.path.join(DOWNLOADS_DIR, podcast_name)
-        if os.path.isdir(podcast_dir):
-            generate_rss(podcast_name, podcast_dir)
+    channels_file = os.path.join(BASE_DIR, "scripts", "channels.json")
+    try:
+        with open(channels_file, "r", encoding='utf-8') as f:
+            channels = json.load(f)
+    except FileNotFoundError:
+        print(f"Error: {channels_file} not found.")
+        return
+    except json.JSONDecodeError:
+        print(f"Error: Could not decode {channels_file}.")
+        return
+
+    for channel_info in channels:
+        podcast_name = channel_info.get("id")
+        max_episodes = channel_info.get("limit")
+        author = channel_info.get("author")
+        description = channel_info.get("description")
+        title = channel_info.get("title")
+        artwork = channel_info.get("artwork")
+        sub_lang = channel_info.get("sub_lang")
+        if podcast_name:
+            podcast_dir = os.path.join(DOWNLOADS_DIR, podcast_name)
+            if os.path.isdir(podcast_dir):
+                generate_rss(podcast_name, podcast_dir, max_episodes, author, description, title, artwork, sub_lang)
 
 if __name__ == "__main__":
     main()

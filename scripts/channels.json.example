@@ -2,6 +2,25 @@
   {
     "id": "ExampleChannel",
     "url": "https://www.youtube.com/channel/UC5CYeHPLer3lbEhgonvbbAA",
-    "limit": 10
+    "limit": 10,
+    "download_limit": 5,
+    "author": "Example Author",
+    "description": "A podcast about examples.",
+    "title": "Example Podcast",
+    "quality": "bestaudio/best",
+    "artwork": "https://example.com/artwork.jpg",
+    "date_after": "20230101",
+    "date_before": "20231231",
+    "sub_lang": "en",
+    "archive": "/path/to/archive.txt",
+    "sponsor_block": "all",
+    "format": "m4a",
+    "cookies": "/path/to/cookies.txt",
+    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36",
+    "proxy": "http://user:pass@host:port",
+    "rate_limit": "1M",
+    "output_template": "%(title)s.%(ext)s",
+    "config_file": "/path/to/config.txt",
+    "log_file": "/path/to/log.txt"
   }
 ]
