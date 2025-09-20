@@ -49,7 +49,7 @@ def get_channel_id_from_url(url):
     try:
         # Use yt-dlp to get the channel ID
         result = subprocess.run(
-            ["yt-dlp", "--print", "%(channel_id)s", "--playlist-end", "1", url],
+            ["yt-dlp", "--print", "%\(channel_id\)s", "--playlist-end", "1", "--cookies", "../cookies.txt", url],
             capture_output=True,
             text=True,
             timeout=30
