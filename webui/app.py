@@ -4,7 +4,6 @@ import os
 import subprocess
 import sys
 import platform
-import shutil
 import hashlib
 from pathlib import Path
 
@@ -43,12 +42,7 @@ def is_ytdlp_available():
         )
         return result.returncode == 0
     except (FileNotFoundError, subprocess.TimeoutExpired):
-        # If not found, check if it's installed via pip
-        try:
-            import yt_dlp
-            return True
-        except ImportError:
-            return False
+        return False
 
 def get_channel_id_from_url(url):
     """Extract channel ID from a YouTube URL using yt-dlp"""
@@ -231,13 +225,8 @@ def authenticate_user():
 def run_downloader():
     """Run the downloader script"""
     try:
-        # Determine the appropriate command based on the OS
-        if platform.system() == "Windows":
-            # On Windows, we need to use bash to run the shell script
-            cmd = ["bash", str(SCRIPTS_DIR / "downloader.sh")]
-        else:
-            # On Unix-like systems, we can run the script directly
-            cmd = ["bash", str(SCRIPTS_DIR / "downloader.sh")]
+        # On Unix-like systems, we can run the script directly
+        cmd = ["bash", str(SCRIPTS_DIR / "downloader.sh")]
             
         result = subprocess.run(
             cmd,
@@ -493,7 +482,4 @@ else:
         - `yt-dlp` - For downloading YouTube videos ([installation instructions](https://github.com/yt-dlp/yt-dlp#installation))
         - `jq` - For processing JSON in shell scripts
         - Python packages listed in `requirements.txt`
-        
-        On Windows, you'll also need:
-        - Git Bash or WSL to run the shell scripts
         """)
