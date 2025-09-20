@@ -4,7 +4,7 @@ import os
 import subprocess
 import sys
 import platform
-import re
+import shutil
 from pathlib import Path
 
 # Configuration - Fix the path to point to the correct location
@@ -29,6 +29,25 @@ def save_channels(channels):
     with open(CHANNELS_FILE, 'w') as f:
         json.dump(channels, f, indent=2)
 
+def is_ytdlp_available():
+    """Check if yt-dlp is available on the system"""
+    try:
+        # Try to find yt-dlp in PATH
+        result = subprocess.run(
+            ["yt-dlp", "--version"],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        return result.returncode == 0
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        # If not found, check if it's installed via pip
+        try:
+            import yt_dlp
+            return True
+        except ImportError:
+            return False
+
 def get_channel_id_from_url(url):
     """Extract channel ID from a YouTube URL using yt-dlp"""
     try:
@@ -46,6 +65,9 @@ def get_channel_id_from_url(url):
         else:
             st.error(f"yt-dlp failed to extract channel ID. Error: {result.stderr}")
             return None
+    except FileNotFoundError:
+        st.error("yt-dlp is not installed or not found in PATH. Please install yt-dlp and make sure it's accessible from the command line.")
+        return None
     except Exception as e:
         st.error(f"Error running yt-dlp: {e}")
         return None
@@ -54,6 +76,11 @@ def convert_channel_url(url):
     """Convert @username URLs to channel ID URLs if needed"""
     # Check if it's an @username URL
     if "@" in url and "youtube.com" in url:
+        # Check if yt-dlp is available
+        if not is_ytdlp_available():
+            st.error("yt-dlp is required to convert @username URLs but it's not installed or not found in PATH. Please install yt-dlp and make sure it's accessible from the command line, or use a direct channel URL.")
+            return None
+            
         with st.spinner(f"Converting {url} to channel ID URL..."):
             converted_url = get_channel_id_from_url(url)
             if converted_url:
@@ -320,6 +347,13 @@ with tab3:
     st.info(f"Artwork Directory: {ARTWORK_DIR}")
     st.info(f"Channels File: {CHANNELS_FILE}")
     
+    # Check if required tools are available
+    st.subheader("System Requirements Check")
+    if is_ytdlp_available():
+        st.success("✅ yt-dlp is available")
+    else:
+        st.error("❌ yt-dlp is not installed or not found in PATH. Please install yt-dlp: https://github.com/yt-dlp/yt-dlp")
+    
     # Channels file
     st.subheader("Channels Configuration")
     if CHANNELS_FILE.exists():
@@ -351,7 +385,7 @@ with tab3:
     st.subheader("Requirements")
     st.markdown("""
     This application requires the following tools to be installed:
-    - `yt-dlp` - For downloading YouTube videos
+    - `yt-dlp` - For downloading YouTube videos ([installation instructions](https://github.com/yt-dlp/yt-dlp#installation))
     - `jq` - For processing JSON in shell scripts
     - Python packages listed in `requirements.txt`
     
