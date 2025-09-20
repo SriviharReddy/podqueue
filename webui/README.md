@@ -33,6 +33,14 @@ For production use, consider:
 - Setting up authentication to secure the Web UI
 - Using a process manager (like systemd or supervisor) to keep the Web UI running
 
+## Password Protection
+
+The Web UI includes built-in password protection:
+- On first access, you'll be prompted to set up an admin username and password
+- You can choose to skip authentication if running in a secure environment
+- After setup, you'll need to log in to access the Web UI
+- A logout button is available in the sidebar
+
 ## Features
 
 - Add and remove YouTube channels/playlists
