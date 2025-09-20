@@ -2,7 +2,8 @@ import streamlit as st
 import json
 import os
 import subprocess
-import requests
+import sys
+import platform
 from pathlib import Path
 
 # Configuration
@@ -54,8 +55,16 @@ def remove_channel(channel_id):
 def run_downloader():
     """Run the downloader script"""
     try:
+        # Determine the appropriate command based on the OS
+        if platform.system() == "Windows":
+            # On Windows, we need to use bash to run the shell script
+            cmd = ["bash", str(SCRIPTS_DIR / "downloader.sh")]
+        else:
+            # On Unix-like systems, we can run the script directly
+            cmd = ["bash", str(SCRIPTS_DIR / "downloader.sh")]
+            
         result = subprocess.run(
-            ["bash", str(SCRIPTS_DIR / "downloader.sh")],
+            cmd,
             capture_output=True,
             text=True,
             timeout=300  # 5 minutes timeout
@@ -70,7 +79,7 @@ def run_rss_generator():
     """Run the RSS generator script"""
     try:
         result = subprocess.run(
-            ["python", str(SCRIPTS_DIR / "rss_generator.py")],
+            [sys.executable, str(SCRIPTS_DIR / "rss_generator.py")],
             capture_output=True,
             text=True,
             timeout=300  # 5 minutes timeout
@@ -152,6 +161,7 @@ with tab1:
                 if channel_id and url:
                     if add_channel(channel_id, url, limit):
                         st.success(f"Channel '{channel_id}' added successfully!")
+                        st.experimental_rerun()
                     else:
                         st.error("Failed to add channel. Check if it already exists.")
                 else:
@@ -191,7 +201,8 @@ with tab2:
                     st.success("Downloader completed successfully!")
                 else:
                     st.error("Downloader failed!")
-                    st.text_area("Error output:", value=stderr, height=200)
+                    if stderr:
+                        st.text_area("Error output:", value=stderr, height=200)
     
     with col2:
         if st.button("📡 Run RSS Generator", use_container_width=True):
@@ -201,7 +212,8 @@ with tab2:
                     st.success("RSS feeds generated successfully!")
                 else:
                     st.error("RSS generation failed!")
-                    st.text_area("Error output:", value=stderr, height=200)
+                    if stderr:
+                        st.text_area("Error output:", value=stderr, height=200)
     
     # Channel status
     st.subheader("Channel Status")
@@ -247,6 +259,11 @@ with tab3:
     else:
         st.warning("channels.json file not found. Add a channel to create it.")
     
+    # System information
+    st.subheader("System Information")
+    st.info(f"Operating System: {platform.system()} {platform.release()}")
+    st.info(f"Python Version: {sys.version}")
+    
     # Instructions
     st.subheader("Instructions")
     st.markdown("""
@@ -263,4 +280,7 @@ with tab3:
     - `yt-dlp` - For downloading YouTube videos
     - `jq` - For processing JSON in shell scripts
     - Python packages listed in `requirements.txt`
+    
+    On Windows, you'll also need:
+    - Git Bash or WSL to run the shell scripts
     """)
