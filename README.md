@@ -11,6 +11,10 @@ The service consists of two main components:
 
 The service is designed to be run on a server and can be automated with cron jobs.
 
+## Web UI
+
+This project also includes a Streamlit-based web interface (`webui/`) for easier management of your podcast channels and downloads.
+
 ## Setup
 
 1.  **Prerequisites**:
@@ -44,6 +48,25 @@ The service is designed to be run on a server and can be automated with cron job
 
 6.  **(Optional) Cookies**:
     *   If you need to download videos that require a login, you can provide a `cookies.txt` file in the root of the project. The `downloader.sh` script will automatically use it.
+
+## Web UI Setup
+
+1. Navigate to the webui directory:
+   ```bash
+   cd webui
+   ```
+
+2. Install the required Python packages:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. Run the Streamlit app:
+   ```bash
+   streamlit run app.py
+   ```
+
+4. Access the web interface at `http://localhost:8501`
 
 ## Usage
 
