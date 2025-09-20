@@ -4,32 +4,22 @@ This project provides a self-hosted service to convert YouTube channels into pod
 
 ## Easy Setup for Beginners
 
-### Windows
-1. Download and install [Git for Windows](https://git-scm.com/download/win)
-2. Download and install [Python 3](https://www.python.org/downloads/)
-3. Clone the repository:
-   ```bash
-   git clone https://github.com/SriviharReddy/podqueue.git
-   cd podqueue
-   ```
-4. Double-click `setup.bat` to automatically install all dependencies
-5. Double-click `webui\start.bat` to start the Web UI
-6. Open your browser and go to `http://localhost:8501`
-
-### Linux/macOS
 1. Clone the repository:
    ```bash
    git clone https://github.com/SriviharReddy/podqueue.git
    cd podqueue
    ```
+
 2. Run the setup script:
    ```bash
    ./setup.sh
    ```
+
 3. Start the Web UI:
    ```bash
    ./webui/start.sh
    ```
+
 4. Open your browser and go to `http://localhost:8501`
 
 ## Running on a Remote Server
@@ -102,8 +92,9 @@ This project also includes a Streamlit-based web interface (`webui/`) for easier
 ### Automated Start
 
 1. Navigate to the webui directory:
-   - On Windows: Double-click `webui\start.bat`
-   - On Linux/macOS: Run `./webui/start.sh` from the terminal
+   ```bash
+   ./webui/start.sh
+   ```
 
 ### Manual Start
 

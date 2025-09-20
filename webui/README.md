@@ -4,11 +4,6 @@ A Streamlit-based web interface for managing your PodQueue YouTube to podcast co
 
 ## Easy Setup for Beginners
 
-### Windows
-1. After cloning the repository, double-click `setup.bat` in the main directory to set up all dependencies
-2. To start the Web UI, double-click `webui\start.bat`
-
-### Linux/macOS
 1. After cloning the repository, run `./setup.sh` to set up all dependencies
 2. To start the Web UI, run `./webui/start.sh`
 
