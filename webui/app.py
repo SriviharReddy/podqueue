@@ -44,15 +44,16 @@ def get_channel_id_from_url(url):
             # Convert to proper channel URL format
             return f"https://www.youtube.com/channel/{channel_id}"
         else:
+            st.error(f"yt-dlp failed to extract channel ID. Error: {result.stderr}")
             return None
     except Exception as e:
-        st.warning(f"Could not extract channel ID: {e}")
+        st.error(f"Error running yt-dlp: {e}")
         return None
 
 def convert_channel_url(url):
     """Convert @username URLs to channel ID URLs if needed"""
     # Check if it's an @username URL
-    if "@youtube.com/" in url or "/@" in url:
+    if "@" in url and "youtube.com" in url:
         with st.spinner(f"Converting {url} to channel ID URL..."):
             converted_url = get_channel_id_from_url(url)
             if converted_url:
@@ -60,7 +61,7 @@ def convert_channel_url(url):
                 return converted_url
             else:
                 st.error("Failed to convert URL. Please check the URL or use a direct channel URL.")
-                return url
+                return None
     return url
 
 def add_channel(channel_id, url, limit):
@@ -75,6 +76,10 @@ def add_channel(channel_id, url, limit):
     
     # Convert URL if it's an @username URL
     converted_url = convert_channel_url(url)
+    
+    # If conversion failed, don't add the channel
+    if converted_url is None:
+        return False
     
     # Add new channel
     new_channel = {
@@ -213,7 +218,7 @@ with tab1:
                         st.success(f"Channel '{channel_id}' added successfully!")
                         st.rerun()
                     else:
-                        st.error("Failed to add channel. Check if it already exists.")
+                        st.error("Failed to add channel.")
                 else:
                     st.error("Please fill in all fields.")
     
