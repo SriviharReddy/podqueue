@@ -5,6 +5,7 @@ import subprocess
 import sys
 import platform
 import hashlib
+import re
 from pathlib import Path
 
 # Configuration - Fix the path to point to the correct location
@@ -307,6 +308,28 @@ def format_duration(seconds):
     else:
         return f"{minutes:02d}:{secs:02d}"
 
+def get_base_url():
+    """Get the base URL from rss_generator.py configuration"""
+    rss_config_path = SCRIPTS_DIR / "rss_generator.py"
+    if rss_config_path.exists():
+        try:
+            with open(rss_config_path, 'r') as f:
+                content = f.read()
+                # Look for the BASE_URL line
+                import re
+                match = re.search(r'BASE_URL\s*=\s*["\']([^"\']+)["\']', content)
+                if match:
+                    return match.group(1)
+        except Exception as e:
+            pass
+    # Fallback to default
+    return "http://your-server-address.com"
+
+def get_feed_url(channel_id):
+    """Generate the podcast feed URL for a channel"""
+    base_url = get_base_url()
+    return f"{base_url}/feeds/{channel_id}.xml"
+
 # Streamlit App
 if not is_authenticated():
     authenticate_user()
@@ -358,12 +381,17 @@ else:
         else:
             for channel in channels:
                 with st.expander(f"📁 {channel['id']}", expanded=False):
-                    col1, col2, col3, col4, col5 = st.columns([3, 3, 1, 1, 1])
+                    col1, col2, col3, col4, col5, col6 = st.columns([2, 2, 2, 1, 1, 1])
                     with col1:
                         st.write(f"**{channel['id']}**")
                     with col2:
+                        st.write("**YouTube URL:**")
                         st.write(channel['url'])
                     with col3:
+                        st.write("**Podcast Feed:**")
+                        feed_url = get_feed_url(channel['id'])
+                        st.code(feed_url, language="url")
+                    with col4:
                         # Edit limit functionality
                         new_limit = st.number_input(
                             "Limit", 
@@ -371,14 +399,14 @@ else:
                             value=channel['limit'], 
                             key=f"limit_{channel['id']}"
                         )
-                    with col4:
+                    with col5:
                         if st.button("Update", key=f"update_{channel['id']}"):
                             if update_channel_limit(channel['id'], new_limit):
                                 st.success("Limit updated successfully!")
                                 st.rerun()
                             else:
                                 st.error("Failed to update limit.")
-                    with col5:
+                    with col6:
                         if st.button("Remove", key=f"remove_{channel['id']}"):
                             remove_channel(channel['id'])
                             st.rerun()
@@ -467,6 +495,26 @@ else:
         st.subheader("System Information")
         st.info(f"Operating System: {platform.system()} {platform.release()}")
         st.info(f"Python Version: {sys.version}")
+        
+        # Podcast Feed Configuration
+        st.subheader("Podcast Feed Configuration")
+        base_url = get_base_url()
+        st.info(f"Current Base URL: {base_url}")
+        st.markdown("""
+        The podcast feed URLs are constructed using the Base URL configured in `scripts/rss_generator.py`.
+        To make your podcast feeds accessible from podcast clients, you need to:
+        
+        1. Edit `scripts/rss_generator.py` and change the `BASE_URL` value to your server's public URL
+        2. Serve the `feeds` directory from your web server at the same path
+        3. Ensure your server is accessible from the internet if you want to subscribe from external podcast clients
+        
+        **Example:** If your server is accessible at `https://mypodcasts.example.com`, set:
+        ```python
+        BASE_URL = "https://mypodcasts.example.com"
+        ```
+        Then your podcast feeds will be available at:
+        `https://mypodcasts.example.com/feeds/{channel_id}.xml`
+        """)
         
         # Instructions
         st.subheader("Instructions")
