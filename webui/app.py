@@ -5,11 +5,14 @@ import subprocess
 import sys
 import platform
 import hashlib
-import re
 from pathlib import Path
+import threading
+import queue
+import time
 
 # Configuration - Fix the path to point to the correct location
-BASE_DIR = Path(__file__).parent.parent.absolute()
+# Configuration - Fix the path to point to the correct location
+BASE_DIR = Path("/home/ubuntu/my_podcast_service").absolute()
 SCRIPTS_DIR = BASE_DIR / "scripts"
 DOWNLOADS_DIR = BASE_DIR / "downloads"
 FEEDS_DIR = BASE_DIR / "feeds"
@@ -50,7 +53,7 @@ def get_channel_id_from_url(url):
     try:
         # Use yt-dlp to get the channel ID
         result = subprocess.run(
-            ["yt-dlp", "--print", "%\(channel_id\)s", "--playlist-end", "1", "--cookies", "../cookies.txt", url],
+            ["yt-dlp", "--print", "%(channel_id)s", "--playlist-end", "1", "--cookies", "../cookies.txt", url],
             capture_output=True,
             text=True,
             timeout=30
@@ -227,38 +230,85 @@ def authenticate_user():
                 else:
                     st.error("Invalid username or password!")
 
-def run_downloader():
-    """Run the downloader script"""
-    try:
-        # On Unix-like systems, we can run the script directly
-        cmd = ["bash", str(SCRIPTS_DIR / "downloader.sh")]
+def run_downloader_realtime():
+    """Run the downloader script with real-time output"""
+    # Create a queue to store output
+    output_queue = queue.Queue()
+    
+    def run_script():
+        try:
+            # Create the subprocess with real-time output
+            cmd = ["bash", str(SCRIPTS_DIR / "downloader.sh")]
             
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=300  # 5 minutes timeout
-        )
-        return result.returncode == 0, result.stdout, result.stderr
-    except subprocess.TimeoutExpired:
-        return False, "", "Downloader script timed out"
-    except Exception as e:
-        return False, "", str(e)
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+                universal_newlines=True,
+                cwd=str(BASE_DIR)
+            )
+            
+            # Read output line by line
+            while True:
+                output = process.stdout.readline()
+                if output == '' and process.poll() is not None:
+                    break
+                if output:
+                    output_queue.put(output.strip())
+            
+            # Get return code
+            return_code = process.poll()
+            output_queue.put(f"###DONE### Return code: {return_code}")
+            
+        except Exception as e:
+            output_queue.put(f"###ERROR### Exception: {str(e)}")
 
-def run_rss_generator():
-    """Run the RSS generator script"""
-    try:
-        result = subprocess.run(
-            [sys.executable, str(SCRIPTS_DIR / "rss_generator.py")],
-            capture_output=True,
-            text=True,
-            timeout=300  # 5 minutes timeout
-        )
-        return result.returncode == 0, result.stdout, result.stderr
-    except subprocess.TimeoutExpired:
-        return False, "", "RSS generator script timed out"
-    except Exception as e:
-        return False, "", str(e)
+    # Start the subprocess in a separate thread
+    thread = threading.Thread(target=run_script)
+    thread.start()
+    
+    return output_queue, thread
+
+def run_rss_generator_realtime():
+    """Run the RSS generator script with real-time output"""
+    # Create a queue to store output
+    output_queue = queue.Queue()
+    
+    def run_script():
+        try:
+            # Create the subprocess with real-time output
+            process = subprocess.Popen(
+                [sys.executable, str(SCRIPTS_DIR / "rss_generator.py")],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+                universal_newlines=True,
+                cwd=str(BASE_DIR)
+            )
+            
+            # Read output line by line
+            while True:
+                output = process.stdout.readline()
+                if output == '' and process.poll() is not None:
+                    break
+                if output:
+                    output_queue.put(output.strip())
+            
+            # Get return code
+            return_code = process.poll()
+            output_queue.put(f"###DONE### Return code: {return_code}")
+            
+        except Exception as e:
+            output_queue.put(f"###ERROR### Exception: {str(e)}")
+
+    # Start the subprocess in a separate thread
+    thread = threading.Thread(target=run_script)
+    thread.start()
+    
+    return output_queue, thread
 
 def get_channel_info(channel_id):
     """Get information about a channel's downloads"""
@@ -307,28 +357,6 @@ def format_duration(seconds):
         return f"{hours:02d}:{minutes:02d}:{secs:02d}"
     else:
         return f"{minutes:02d}:{secs:02d}"
-
-def get_base_url():
-    """Get the base URL from rss_generator.py configuration"""
-    rss_config_path = SCRIPTS_DIR / "rss_generator.py"
-    if rss_config_path.exists():
-        try:
-            with open(rss_config_path, 'r') as f:
-                content = f.read()
-                # Look for the BASE_URL line
-                import re
-                match = re.search(r'BASE_URL\s*=\s*["\']([^"\']+)["\']', content)
-                if match:
-                    return match.group(1)
-        except Exception as e:
-            pass
-    # Fallback to default
-    return "http://your-server-address.com"
-
-def get_feed_url(channel_id):
-    """Generate the podcast feed URL for a channel"""
-    base_url = get_base_url()
-    return f"{base_url}/feeds/{channel_id}.xml"
 
 # Streamlit App
 if not is_authenticated():
@@ -381,17 +409,12 @@ else:
         else:
             for channel in channels:
                 with st.expander(f"📁 {channel['id']}", expanded=False):
-                    col1, col2, col3, col4, col5, col6 = st.columns([2, 2, 2, 1, 1, 1])
+                    col1, col2, col3, col4, col5 = st.columns([3, 3, 1, 1, 1])
                     with col1:
                         st.write(f"**{channel['id']}**")
                     with col2:
-                        st.write("**YouTube URL:**")
                         st.write(channel['url'])
                     with col3:
-                        st.write("**Podcast Feed:**")
-                        feed_url = get_feed_url(channel['id'])
-                        st.code(feed_url, language="url")
-                    with col4:
                         # Edit limit functionality
                         new_limit = st.number_input(
                             "Limit", 
@@ -399,14 +422,14 @@ else:
                             value=channel['limit'], 
                             key=f"limit_{channel['id']}"
                         )
-                    with col5:
+                    with col4:
                         if st.button("Update", key=f"update_{channel['id']}"):
                             if update_channel_limit(channel['id'], new_limit):
                                 st.success("Limit updated successfully!")
                                 st.rerun()
                             else:
                                 st.error("Failed to update limit.")
-                    with col6:
+                    with col5:
                         if st.button("Remove", key=f"remove_{channel['id']}"):
                             remove_channel(channel['id'])
                             st.rerun()
@@ -419,26 +442,93 @@ else:
         col1, col2 = st.columns(2)
         with col1:
             if st.button("📥 Run Downloader", use_container_width=True):
-                with st.spinner("Running downloader... This may take a while."):
-                    success, stdout, stderr = run_downloader()
-                    if success:
-                        st.success("Downloader completed successfully!")
-                    else:
-                        st.error("Downloader failed!")
-                        if stderr:
-                            st.text_area("Error output:", value=stderr, height=200)
+                st.session_state.show_downloader_output = True
         
         with col2:
             if st.button("📡 Run RSS Generator", use_container_width=True):
-                with st.spinner("Generating RSS feeds... This may take a while."):
-                    success, stdout, stderr = run_rss_generator()
-                    if success:
-                        st.success("RSS feeds generated successfully!")
-                    else:
-                        st.error("RSS generation failed!")
-                        if stderr:
-                            st.text_area("Error output:", value=stderr, height=200)
+                st.session_state.show_rss_output = True
         
+        # Show real-time output if requested
+        if st.session_state.get('show_downloader_output', False):
+            st.subheader("Downloader Output")
+            output_placeholder = st.empty()
+            status_placeholder = st.empty()
+            
+            output_queue, thread = run_downloader_realtime()
+            
+            # Display real-time output
+            output_lines = []
+            done = False
+            while not done:
+                try:
+                    line = output_queue.get(timeout=0.1)
+                    if line.startswith("###DONE###"):
+                        done = True
+                        status_placeholder.success("Downloader completed successfully!")
+                    elif line.startswith("###ERROR###"):
+                        status_placeholder.error(f"Downloader failed! {line}")
+                        done = True
+                    else:
+                        output_lines.append(line)
+                        output_text = "\n".join(output_lines[-20:])  # Show last 20 lines
+                        output_placeholder.code(output_text, language="shell", height=400)
+                except queue.Empty:
+                    # Still processing
+                    status_placeholder.info("Downloader is running... please wait.")
+                    
+                    # Update display periodically even if no new output
+                    if output_lines:
+                        output_text = "\n".join(output_lines[-20:])
+                        output_placeholder.code(output_text, language="shell", height=400)
+            
+            # Wait for thread to complete
+            thread.join()
+            
+            # Add button to hide output
+            if st.button("Hide Downloader Output"):
+                st.session_state.show_downloader_output = False
+                st.rerun()
+
+        elif st.session_state.get('show_rss_output', False):
+            st.subheader("RSS Generator Output")
+            output_placeholder = st.empty()
+            status_placeholder = st.empty()
+            
+            output_queue, thread = run_rss_generator_realtime()
+            
+            # Display real-time output
+            output_lines = []
+            done = False
+            while not done:
+                try:
+                    line = output_queue.get(timeout=0.1)
+                    if line.startswith("###DONE###"):
+                        done = True
+                        status_placeholder.success("RSS generator completed successfully!")
+                    elif line.startswith("###ERROR###"):
+                        status_placeholder.error(f"RSS generator failed! {line}")
+                        done = True
+                    else:
+                        output_lines.append(line)
+                        output_text = "\n".join(output_lines[-20:])  # Show last 20 lines
+                        output_placeholder.code(output_text, language="shell", height=400)
+                except queue.Empty:
+                    # Still processing
+                    status_placeholder.info("RSS generator is running... please wait.")
+                    
+                    # Update display periodically even if no new output
+                    if output_lines:
+                        output_text = "\n".join(output_lines[-20:])
+                        output_placeholder.code(output_text, language="shell", height=400)
+            
+            # Wait for thread to complete
+            thread.join()
+            
+            # Add button to hide output
+            if st.button("Hide RSS Output"):
+                st.session_state.show_rss_output = False
+                st.rerun()
+
         # Channel status
         st.subheader("Channel Status")
         channels = load_channels()
@@ -495,26 +585,6 @@ else:
         st.subheader("System Information")
         st.info(f"Operating System: {platform.system()} {platform.release()}")
         st.info(f"Python Version: {sys.version}")
-        
-        # Podcast Feed Configuration
-        st.subheader("Podcast Feed Configuration")
-        base_url = get_base_url()
-        st.info(f"Current Base URL: {base_url}")
-        st.markdown("""
-        The podcast feed URLs are constructed using the Base URL configured in `scripts/rss_generator.py`.
-        To make your podcast feeds accessible from podcast clients, you need to:
-        
-        1. Edit `scripts/rss_generator.py` and change the `BASE_URL` value to your server's public URL
-        2. Serve the `feeds` directory from your web server at the same path
-        3. Ensure your server is accessible from the internet if you want to subscribe from external podcast clients
-        
-        **Example:** If your server is accessible at `https://mypodcasts.example.com`, set:
-        ```python
-        BASE_URL = "https://mypodcasts.example.com"
-        ```
-        Then your podcast feeds will be available at:
-        `https://mypodcasts.example.com/feeds/{channel_id}.xml`
-        """)
         
         # Instructions
         st.subheader("Instructions")
