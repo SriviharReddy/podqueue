@@ -8,6 +8,7 @@
 - 📻 **RSS feed generation** - Compatible with all major podcast apps (Pocket Casts, Overcast, etc.)
 - 🌐 **Web UI** - Easy channel management via Streamlit interface
 - 🗑️ **Auto-cleanup** - Configurable episode limits per channel
+- 📑 **Automatic chapters** - YouTube video sections converted to podcast chapters
 - 🔐 **YouTube authentication** - Cookie support to avoid bot detection
 
 ## Quick Start
