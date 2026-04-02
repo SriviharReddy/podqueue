@@ -1,154 +1,251 @@
 # PodQueue
 
-This project provides a self-hosted service to convert YouTube channels into podcast feeds. It automatically downloads the latest videos from specified YouTube channels, converts them to audio, and generates RSS feeds that can be used with any podcast client.
+**Convert YouTube channels into podcast RSS feeds.** PodQueue automatically downloads the latest videos from your favorite YouTube channels, converts them to audio (M4A), and generates RSS feeds that work with any podcast client.
 
-## Easy Setup for Beginners
+## Features
 
-1. Clone the repository:
+- 🔄 **Automatic downloads** - Hourly checks for new videos from configured channels
+- 📻 **RSS feed generation** - Compatible with all major podcast apps (Pocket Casts, Overcast, etc.)
+- 🌐 **Web UI** - Easy channel management via Streamlit interface
+- 🗑️ **Auto-cleanup** - Configurable episode limits per channel
+- 🔐 **YouTube authentication** - Cookie support to avoid bot detection
+
+## Quick Start
+
+### 1. Clone and Setup
+
+```bash
+git clone https://github.com/SriviharReddy/podqueue.git
+cd podqueue
+./setup.sh
+```
+
+### 2. Export YouTube Cookies (Highly Recommended)
+
+Without cookies, YouTube may block automated downloads:
+
+1. Install [Get cookies.txt locally](https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc) Chrome extension
+2. Log into YouTube in Chrome
+3. Export cookies as `cookies.txt`
+4. Place in project root: `podqueue/cookies.txt`
+
+### 3. Start the Web UI
+
+```bash
+./webui/start.sh
+```
+
+Open `http://localhost:8501` in your browser to configure channels.
+
+### 4. Subscribe to Podcast Feeds
+
+Access your RSS feeds at:
+- **Local**: `http://localhost:8501/feeds/CHANNEL_NAME.xml`
+- **Remote**: `http://YOUR_SERVER_IP/feeds/CHANNEL_NAME.xml`
+
+Add these URLs to your podcast app.
+
+---
+
+## Table of Contents
+
+- [Manual Installation](#manual-installation)
+- [Configuration](#configuration)
+- [Running on Remote Server](#running-on-remote-server)
+- [Automation (Cron)](#automation-cron)
+- [Troubleshooting](#troubleshooting)
+- [Project Structure](#project-structure)
+
+---
+
+## Manual Installation
+
+### Prerequisites
+
+| Dependency | Installation |
+|------------|--------------|
+| Python 3.8+ | `sudo apt install python3 python3-pip` |
+| yt-dlp | `pip install yt-dlp` |
+| jq | `sudo apt install jq` |
+| ffmpeg | `sudo apt install ffmpeg` |
+
+### Setup Steps
+
+1. **Install Python dependencies**:
    ```bash
-   git clone https://github.com/SriviharReddy/podqueue.git
-   cd podqueue
+   pip install -r scripts/requirements.txt
    ```
 
-2. **Export YouTube cookies (highly recommended)**:
-   *   Install the [Get cookies.txt locally](https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc) Chrome extension
-   *   Log into your YouTube account in Chrome
-   *   Use the extension to export your cookies as `cookies.txt`
-   *   Place the `cookies.txt` file in the project root directory (`podqueue/cookies.txt`)
-   *   This helps avoid YouTube bot detection issues
-
-3. Run the setup script:
+2. **Configure channels** - Copy and edit `scripts/channels.json`:
    ```bash
-   ./setup.sh
+   cp scripts/channels.json.example scripts/channels.json
    ```
 
-4. Start the Web UI:
+3. **Set BASE_DIR** - Edit `scripts/downloader.sh` and `scripts/rss_generator.py` to set the absolute path to your project directory.
+
+4. **Add cookies** (recommended):
+   Place `cookies.txt` in the project root to avoid YouTube bot detection.
+
+---
+
+## Configuration
+
+### channels.json Format
+
+```json
+[
+  {
+    "id": "ChannelName",
+    "url": "https://www.youtube.com/channel/CHANNEL_ID",
+    "limit": 5
+  }
+]
+```
+
+| Field | Description |
+|-------|-------------|
+| `id` | Unique identifier (used for folder and feed names) |
+| `url` | YouTube channel or playlist URL |
+| `limit` | Maximum episodes to keep (older ones auto-deleted) |
+
+**Supported URLs**:
+- Channel: `https://www.youtube.com/channel/UC...`
+- Playlist: `https://www.youtube.com/playlist?list=PL...`
+- Username: `https://www.youtube.com/@channelname` (converted via Web UI)
+
+---
+
+## Running on Remote Server
+
+### Web UI Access
+
+```bash
+cd webui
+streamlit run app.py --server.address 0.0.0.0 --server.port 8501
+```
+
+### Firewall Configuration
+
+**Oracle Cloud**: Add security list rule for port 8501 (TCP, source 0.0.0.0/0)
+
+**Linux (ufw)**:
+```bash
+sudo ufw allow 8501/tcp
+```
+
+### Production Recommendations
+
+- Use a reverse proxy (Nginx) with SSL/TLS
+- Set up authentication for the Web UI
+- Use systemd or supervisor to keep services running
+- Serve the `feeds/` directory via HTTP for podcast clients
+
+---
+
+## Automation (Cron)
+
+Edit crontab with `crontab -e`:
+
+```bash
+# Update yt-dlp daily (keeps YouTube challenge solver current)
+0 2 * * * /path/to/venv/bin/pip install -U yt-dlp yt_dlp_ejs
+
+# Download new episodes hourly
+0 * * * * /path/to/podqueue/scripts/downloader.sh
+
+# Generate RSS feeds hourly (after downloader)
+5 * * * * /path/to/podqueue/venv/bin/python /path/to/podqueue/scripts/rss_generator.py
+```
+
+**Important**: Keep `yt-dlp` and `yt_dlp_ejs` updated to avoid YouTube bot detection issues.
+
+---
+
+## Troubleshooting
+
+### No New Episodes Downloading
+
+**Symptom**: Downloader runs but no new episodes appear.
+
+**Causes & Fixes**:
+
+1. **Expired cookies** - Re-export YouTube cookies (see [Quick Start](#2-export-youtube-cookies-highly-recommended))
+
+2. **Outdated yt-dlp** - Update manually:
    ```bash
-   ./webui/start.sh
+   pip install -U yt-dlp yt_dlp_ejs
    ```
 
-5. Open your browser and go to `http://localhost:8501`
-
-## Running on a Remote Server
-
-To access the Web UI from another device when running on a remote server:
-
-1. Start the Web UI with network access:
+3. **Check logs**:
    ```bash
-   cd webui
-   streamlit run app.py --server.address 0.0.0.0 --server.port 8501
+   tail -100 logs/cron.log
    ```
 
-2. Configure your server's firewall to allow connections on port 8501
+### File Limits Not Enforced
 
-3. Access the Web UI from any device on the same network using:
-   `http://YOUR_SERVER_IP:8501`
+The cleanup runs before and after downloads. To manually clean up:
 
-For production use, consider:
-- Using a reverse proxy (like Nginx) with SSL encryption
-- Setting up authentication to secure the Web UI
-- Using a process manager (like systemd or supervisor) to keep the Web UI running
+```bash
+cd /path/to/downloads/ChannelName
+ls -t *.m4a | awk 'NR>LIMIT' | xargs rm
+```
 
-## How it Works
+### RSS Feeds Not Updating
 
-The service consists of two main components:
+Run the generator manually:
+```bash
+python3 scripts/rss_generator.py
+```
 
-1.  **Downloader (`downloader.sh`)**: A shell script that uses `yt-dlp` to download the latest videos from the YouTube channels specified in `scripts/channels.json`. It converts the videos to M4A audio files and stores them in the `downloads` directory.
-2.  **RSS Generator (`rss_generator.py`)**: A Python script that generates RSS feeds for each channel. It reads the downloaded audio files and their metadata to create the feeds in the `feeds` directory.
+### YouTube Bot Detection Errors
 
-The service is designed to be run on a server and can be automated with cron jobs.
+Common errors:
+- `Sign in to confirm you're not a bot`
+- `n challenge solving failed`
+- `Requested format is not available`
 
-## Web UI
+**Fix**: Update yt-dlp and refresh cookies:
+```bash
+pip install -U yt-dlp yt_dlp_ejs
+# Then re-export cookies.txt
+```
 
-This project also includes a Streamlit-based web interface (`webui/`) for easier management of your podcast channels and downloads.
+### SSH Connection Issues (Remote Servers)
 
-## Manual Setup
+If SSH times out:
+1. Check cloud provider's security groups/firewall rules
+2. Verify port 22 is allowed
+3. Restart VM if needed
 
-1.  **Prerequisites**:
-    *   [yt-dlp](https://github.com/yt-dlp/yt-dlp)
-    *   [jq](https://stedolan.github.io/jq/)
-    *   Python 3
-    *   `pip`
+---
 
-2.  **Clone the repository**:
-    ```bash
-    git clone https://github.com/SriviharReddy/podqueue.git
-    cd podqueue
-    ```
-
-3.  **Install Python dependencies**:
-    ```bash
-    pip install -r scripts/requirements.txt
-    ```
-
-4.  **Configure the channels**:
-    *   Copy `scripts/channels.json.example` to `scripts/channels.json`.
-    *   Edit `scripts/channels.json` to add the YouTube channels you want to follow. Each entry should have an `id`, `url`, and `limit` (the maximum number of episodes to keep).
-    *   You can add playlists directly, but for channels with @username URLs (e.g., `https://www.youtube.com/@channelname`), they will be automatically converted to channel ID URLs when using the Web UI.
-    *   The `url` in `channels.json` should be in the format `https://www.youtube.com/channel/CHANNEL_ID` for direct channel URLs.
-
-5.  **Set up the base directory**:
-    *   The scripts expect to be run from a specific base directory. You will need to edit `downloader.sh` and `rss_generator.py` to set the `BASE_DIR` variable to the absolute path of the project directory.
-
-6.  **(Recommended) Cookies**:
-    *   It is highly recommended to provide a `cookies.txt` file in the root of the project to avoid bot detection issues with YouTube. The `downloader.sh` script will automatically use it.
-    *   To easily export cookies from your browser, you can use the [Get cookies.txt locally](https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc) Chrome extension.
-    *   Without cookies, you may encounter errors when trying to access certain YouTube content that requires authentication or when YouTube detects automated access.
-
-## Web UI Setup
-
-### Automated Start
-
-1. Navigate to the webui directory:
-   ```bash
-   ./webui/start.sh
-   ```
-
-### Manual Start
-
-1. Navigate to the webui directory:
-   ```bash
-   cd webui
-   ```
-
-2. Install the required Python packages:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. Run the Streamlit app:
-   ```bash
-   streamlit run app.py
-   ```
-
-4. Access the web interface at `http://localhost:8501`
-
-## Usage
-
-1.  **Run the downloader**:
-    ```bash
-    ./scripts/downloader.sh
-    ```
-    This will download the latest videos from the configured channels.
-
-2.  **Run the RSS generator**:
-    ```bash
-    python3 scripts/rss_generator.py
-    ```
-    This will generate the RSS feeds in the `feeds` directory.
-
-3.  **Serve the feeds**:
-    *   The generated feeds are located in the `feeds` directory. You will need to serve this directory with a web server (e.g., Nginx, Apache) to access them from your podcast client. The `BASE_URL` in `rss_generator.py` should be set to the public URL of your server.
-
-## Automation
-
-You can automate the process of downloading and generating feeds using cron jobs. For example, to run the downloader every hour and the RSS generator every two hours, you could add the following to your crontab:
+## Project Structure
 
 ```
-0 * * * * /path/to/your/project/scripts/downloader.sh
-0 */2 * * * /path/to/your/project/scripts/rss_generator.py
+podqueue/
+├── scripts/
+│   ├── downloader.sh          # Downloads videos from YouTube
+│   ├── rss_generator.py       # Generates RSS feeds
+│   └── channels.json          # Channel configuration
+├── downloads/                  # Downloaded audio files (by channel)
+├── feeds/                      # Generated RSS feeds
+├── artwork/                    # Channel artwork
+├── webui/                      # Streamlit web interface
+├── cookies.txt                 # YouTube authentication
+└── MAINTENANCE.md              # Detailed troubleshooting guide
 ```
+
+---
 
 ## Contributing
 
-Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
+Pull requests are welcome! For major changes, please open an issue first to discuss what you would like to change.
+
+## License
+
+MIT License
+
+## Acknowledgments
+
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp) - YouTube downloader
+- [Streamlit](https://streamlit.io/) - Web UI framework
