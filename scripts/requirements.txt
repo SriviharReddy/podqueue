@@ -1,1 +1,4 @@
 requests
+yt-dlp
+yt_dlp_ejs
+streamlit
