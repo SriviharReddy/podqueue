@@ -53,6 +53,9 @@ The Web UI includes built-in password protection:
 - Add and remove YouTube channels/playlists
 - Automatically convert @username URLs to channel IDs
 - Edit episode limits for existing channels
+- Toggle SponsorBlock per feed
+- Set per-feed check intervals in hours
+- Remove a channel and clean up its downloaded files, feed XML, and scheduler state
 - Run the downloader to fetch new episodes
 - Generate RSS feeds for your podcasts
 - View status of your channels and downloads
@@ -85,6 +88,15 @@ The web interface will be available at `http://localhost:8501` by default.
 ## Configuration
 
 The web UI uses the same `channels.json` file as the main PodQueue application, so any channels you've already configured will be visible in the web interface.
+
+Each feed can also store:
+- `sponsorblock`: enable yt-dlp SponsorBlock removal for that feed
+- `check_interval_hours`: how often the hourly downloader should actually check that feed
+
+When you remove a channel from the Web UI, it also deletes:
+- `downloads/<channel_id>/`
+- `feeds/<channel_id>.xml`
+- `state/channel_checks/<channel_id>.last_check`
 
 ## @username URL Support
 

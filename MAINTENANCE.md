@@ -92,7 +92,26 @@ ssh -i ssh-key-2025-08-20.key ubuntu@152.67.182.84
 - Error: `n challenge solving failed`
 - Error: `Requested format is not available` (only images available)
 
-#### C. Format Not Available
+#### C. Unsupported JavaScript Runtime
+yt-dlp on the VM now uses Deno for challenge solving. If the runtime is missing or misconfigured, the extractor can still fall back to a broken Node setup.
+
+**Fix**:
+```bash
+sudo sh -lc 'cat > /home/ubuntu/.config/yt-dlp/config <<EOF
+--js-runtimes node
+--js-runtimes deno:/home/ubuntu/.deno/bin/deno
+--remote-components ejs:npm
+EOF'
+```
+
+**Verify**:
+```bash
+/home/ubuntu/my_podcast_service/venv/bin/yt-dlp --verbose --skip-download --cookies /home/ubuntu/my_podcast_service/cookies.txt "https://www.youtube.com/watch?v=VIDEO_ID"
+```
+
+You should see `JS runtimes: deno-...` in the debug output and `[jsc:deno]` challenge-solving lines.
+
+#### D. Format Not Available
 Some videos may be Premieres, members-only, or have restricted formats.
 
 **Fix**: Check if the video is publicly available or requires Premium access.
@@ -114,6 +133,14 @@ ls -t *.m4a | awk 'NR>5' | xargs -I {} sh -c 'echo "Deleting: {}"; rm -f "{}" "{
 for f in *.m4a; do vid="${f%.m4a}"; grep -q "youtube $vid" archive.txt || echo "youtube $vid" >> archive.txt; done
 sort -u archive.txt -o archive.txt
 ```
+
+### 2b. Playlist Scan Window Too Small
+
+**Symptoms**: Downloader runs hourly, but new episodes do not appear after private or unavailable entries at the top of a playlist.
+
+**Cause**: The downloader used to scan only `limit` items, which could stop at unavailable videos before reaching a playable episode.
+
+**Fix**: The downloader now scans a larger window before applying the download archive. If this regresses, inspect `scripts/downloader.sh` and increase the scan window again.
 
 ### 3. RSS Feeds Not Updating
 
@@ -251,6 +278,7 @@ To add a rule:
 |------|--------|
 | 2026-03-29 | Fixed yt_dlp_ejs challenge solver (0.3.1 → 0.8.0), updated yt-dlp (2025.11.12 → 2026.03.17), fixed cookie authentication |
 | 2026-04-01 | Fixed file limit enforcement - added cleanup before yt-dlp runs, cleaned up duplicate folders |
+| 2026-07-02 | Added Deno-based yt-dlp runtime config and widened the playlist scan window so private or unavailable entries do not block downloads |
 
 ## Quick Reference Commands
 

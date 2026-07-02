@@ -5,6 +5,7 @@ import subprocess
 import sys
 import platform
 import hashlib
+import shutil
 from pathlib import Path
 import threading
 import queue
@@ -19,6 +20,7 @@ FEEDS_DIR = BASE_DIR / "feeds"
 ARTWORK_DIR = BASE_DIR / "artwork"
 CHANNELS_FILE = SCRIPTS_DIR / "channels.json"
 AUTH_FILE = BASE_DIR / "webui" / "auth.json"
+STATE_DIR = BASE_DIR / "state" / "channel_checks"
 
 def load_channels():
     """Load channels from the channels.json file"""
@@ -91,7 +93,7 @@ def convert_channel_url(url):
                 return None
     return url
 
-def add_channel(channel_id, url, limit):
+def add_channel(channel_id, url, limit, sponsorblock=False, check_interval_hours=1):
     """Add a new channel to the channels.json file"""
     channels = load_channels()
     
@@ -112,7 +114,9 @@ def add_channel(channel_id, url, limit):
     new_channel = {
         "id": channel_id,
         "url": converted_url,
-        "limit": int(limit)
+        "limit": int(limit),
+        "sponsorblock": bool(sponsorblock),
+        "check_interval_hours": int(check_interval_hours)
     }
     channels.append(new_channel)
     save_channels(channels)
@@ -124,12 +128,26 @@ def remove_channel(channel_id):
     channels = [channel for channel in channels if channel['id'] != channel_id]
     save_channels(channels)
 
-def update_channel_limit(channel_id, new_limit):
-    """Update the limit of an existing channel"""
+    # Remove downloaded episodes, generated feed, and interval state for the channel.
+    download_dir = DOWNLOADS_DIR / channel_id
+    feed_file = FEEDS_DIR / f"{channel_id}.xml"
+    state_file = STATE_DIR / f"{channel_id}.last_check"
+
+    if download_dir.exists():
+        shutil.rmtree(download_dir)
+    if feed_file.exists():
+        feed_file.unlink()
+    if state_file.exists():
+        state_file.unlink()
+
+def update_channel_settings(channel_id, new_limit, sponsorblock, check_interval_hours):
+    """Update editable settings of an existing channel"""
     channels = load_channels()
     for channel in channels:
         if channel['id'] == channel_id:
             channel['limit'] = int(new_limit)
+            channel['sponsorblock'] = bool(sponsorblock)
+            channel['check_interval_hours'] = int(check_interval_hours)
             save_channels(channels)
             return True
     return False
@@ -388,11 +406,13 @@ else:
                 channel_id = st.text_input("Channel ID")
                 url = st.text_input("YouTube Channel/Playlist URL")
                 limit = st.number_input("Episode Limit", min_value=1, value=10)
+                check_interval_hours = st.number_input("Check Interval (hours)", min_value=1, value=1)
+                sponsorblock = st.checkbox("Enable SponsorBlock removal", value=False)
                 submitted = st.form_submit_button("Add Channel")
                 
                 if submitted:
                     if channel_id and url:
-                        if add_channel(channel_id, url, limit):
+                        if add_channel(channel_id, url, limit, sponsorblock, check_interval_hours):
                             st.success(f"Channel '{channel_id}' added successfully!")
                             st.rerun()
                         else:
@@ -409,27 +429,46 @@ else:
         else:
             for channel in channels:
                 with st.expander(f"📁 {channel['id']}", expanded=False):
-                    col1, col2, col3, col4, col5 = st.columns([3, 3, 1, 1, 1])
+                    sponsorblock_enabled = bool(channel.get('sponsorblock', channel.get('sponsor_block', False)))
+                    interval_hours = int(channel.get('check_interval_hours', 1) or 1)
+
+                    col1, col2 = st.columns([3, 4])
                     with col1:
                         st.write(f"**{channel['id']}**")
                     with col2:
                         st.write(channel['url'])
-                    with col3:
-                        # Edit limit functionality
+
+                    settings_col1, settings_col2, settings_col3 = st.columns([1, 1, 1])
+                    with settings_col1:
                         new_limit = st.number_input(
-                            "Limit", 
-                            min_value=1, 
-                            value=channel['limit'], 
+                            "Limit",
+                            min_value=1,
+                            value=channel['limit'],
                             key=f"limit_{channel['id']}"
                         )
-                    with col4:
+                    with settings_col2:
+                        new_interval = st.number_input(
+                            "Check Interval (hours)",
+                            min_value=1,
+                            value=interval_hours,
+                            key=f"interval_{channel['id']}"
+                        )
+                    with settings_col3:
+                        new_sponsorblock = st.checkbox(
+                            "SponsorBlock",
+                            value=sponsorblock_enabled,
+                            key=f"sponsorblock_{channel['id']}"
+                        )
+
+                    action_col1, action_col2 = st.columns([1, 1])
+                    with action_col1:
                         if st.button("Update", key=f"update_{channel['id']}"):
-                            if update_channel_limit(channel['id'], new_limit):
-                                st.success("Limit updated successfully!")
+                            if update_channel_settings(channel['id'], new_limit, new_sponsorblock, new_interval):
+                                st.success("Settings updated successfully!")
                                 st.rerun()
                             else:
-                                st.error("Failed to update limit.")
-                    with col5:
+                                st.error("Failed to update settings.")
+                    with action_col2:
                         if st.button("Remove", key=f"remove_{channel['id']}"):
                             remove_channel(channel['id'])
                             st.rerun()

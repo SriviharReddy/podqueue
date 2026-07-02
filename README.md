@@ -108,11 +108,22 @@ Add these URLs to your podcast app.
 | `id` | Unique identifier (used for folder and feed names) |
 | `url` | YouTube channel or playlist URL |
 | `limit` | Maximum episodes to keep (older ones auto-deleted) |
+| `check_interval_hours` | How often this feed should be checked when the hourly cron runs |
+| `sponsorblock` | Set to `true` to remove SponsorBlock-marked segments for this feed |
 
 **Supported URLs**:
 - Channel: `https://www.youtube.com/channel/UC...`
 - Playlist: `https://www.youtube.com/playlist?list=PL...`
 - Username: `https://www.youtube.com/@channelname` (converted via Web UI)
+
+**Optional per-feed controls**:
+- `check_interval_hours`: Keep cron hourly but only check a specific feed every N hours
+- `sponsorblock`: Enable yt-dlp SponsorBlock removal for that feed only
+
+**Channel removal behavior**:
+- Removing a channel in the Web UI also deletes its downloaded episode folder
+- The generated RSS feed XML for that channel is deleted as well
+- Any per-channel interval state file is removed so stale scheduling data does not linger
 
 ---
 

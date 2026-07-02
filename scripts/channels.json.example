@@ -3,6 +3,8 @@
     "id": "ExampleChannel",
     "url": "https://www.youtube.com/channel/UC5CYeHPLer3lbEhgonvbbAA",
     "limit": 10,
+    "check_interval_hours": 1,
+    "sponsorblock": false,
     "download_limit": 5,
     "author": "Example Author",
     "description": "A podcast about examples.",

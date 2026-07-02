@@ -1,15 +1,45 @@
 #!/bin/bash
 BASE_DIR="/home/ubuntu/my_podcast_service"
 source "$BASE_DIR/venv/bin/activate"
+STATE_DIR="$BASE_DIR/state/channel_checks"
+mkdir -p "$STATE_DIR"
 echo "Starting YouTube podcast sync at $(date)"
 jq -c '.[]' "$BASE_DIR/scripts/channels.json" | while read i; do
   ID=$(jq -r '.id' <<< "$i")
   URL=$(jq -r '.url' <<< "$i")
   LIMIT=$(jq -r '.limit' <<< "$i")
+  CHECK_INTERVAL_HOURS=$(jq -r '(.check_interval_hours // 1) | tonumber? // 1 | if . < 1 then 1 else . end' <<< "$i")
+  SPONSORBLOCK_VALUE=$(jq -r '
+    if has("sponsorblock") then .sponsorblock
+    elif has("sponsor_block") then .sponsor_block
+    else false
+    end
+    | if . == null then "false" else tostring end
+  ' <<< "$i")
   DOWNLOAD_DIR="$BASE_DIR/downloads/$ID"
   ARCHIVE_FILE="$DOWNLOAD_DIR/archive.txt"
+  LAST_CHECK_FILE="$STATE_DIR/$ID.last_check"
+  CURRENT_TIME=$(date +%s)
+  PLAYLIST_SCAN_LIMIT=$((LIMIT * 5))
+  if [ "$PLAYLIST_SCAN_LIMIT" -lt 20 ]; then
+    PLAYLIST_SCAN_LIMIT=20
+  fi
   mkdir -p "$DOWNLOAD_DIR"
   echo "--- Processing: $ID ---"
+  echo "Check interval: ${CHECK_INTERVAL_HOURS} hour(s)"
+  echo "SponsorBlock: $SPONSORBLOCK_VALUE"
+  echo "Playlist scan window: ${PLAYLIST_SCAN_LIMIT} item(s)"
+  if [ -f "$LAST_CHECK_FILE" ]; then
+    LAST_CHECK_TIME=$(cat "$LAST_CHECK_FILE")
+    if [[ "$LAST_CHECK_TIME" =~ ^[0-9]+$ ]]; then
+      NEXT_CHECK_TIME=$((LAST_CHECK_TIME + CHECK_INTERVAL_HOURS * 3600))
+      if [ "$CURRENT_TIME" -lt "$NEXT_CHECK_TIME" ]; then
+        REMAINING_MINUTES=$(((NEXT_CHECK_TIME - CURRENT_TIME + 59) / 60))
+        echo "Skipping $ID. Next check in about ${REMAINING_MINUTES} minute(s)."
+        continue
+      fi
+    fi
+  fi
   # Rebuild archive file based on existing .info.json files
   echo "--- Rebuilding archive file for: $ID ---"
   if [ -f "$ARCHIVE_FILE" ]; then
@@ -46,19 +76,34 @@ jq -c '.[]' "$BASE_DIR/scripts/channels.json" | while read i; do
     echo "No cleanup needed for $ID"
   fi
 
+  YTDLP_CMD=(
+    yt-dlp
+    --cookies "$BASE_DIR/cookies.txt"
+    --download-archive "$ARCHIVE_FILE"
+    --playlist-end "$PLAYLIST_SCAN_LIMIT"
+    -f "bestaudio[ext=m4a]/bestaudio/best"
+    --extract-audio
+    --write-info-json
+    --restrict-filenames
+    --verbose
+    --match-filter "!is_short"
+    --output "$DOWNLOAD_DIR/%(id)s.%(ext)s"
+  )
+
+  case "${SPONSORBLOCK_VALUE,,}" in
+    true|1|yes|on)
+      YTDLP_CMD+=(--sponsorblock-remove all)
+      ;;
+    false|0|no|off|"")
+      ;;
+    *)
+      YTDLP_CMD+=(--sponsorblock-remove "$SPONSORBLOCK_VALUE")
+      ;;
+  esac
+
+  echo "$CURRENT_TIME" > "$LAST_CHECK_FILE"
   # Download new videos (excluding Shorts)
-  yt-dlp \
-    --cookies "$BASE_DIR/cookies.txt" \
-    --download-archive "$ARCHIVE_FILE" \
-    --playlist-end "$LIMIT" \
-    -f "bestaudio[ext=m4a]/bestaudio/best" \
-    --extract-audio \
-    --write-info-json \
-    --restrict-filenames \
-    --verbose \
-    --match-filter "!is_short" \
-    --output "$DOWNLOAD_DIR/%(id)s.%(ext)s" \
-    "$URL"
+  "${YTDLP_CMD[@]}" "$URL"
   # Clean up old episodes if we have more than the limit
   echo "--- Cleaning up old episodes for: $ID ---"
   cd "$DOWNLOAD_DIR"
