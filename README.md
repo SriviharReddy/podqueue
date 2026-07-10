@@ -68,7 +68,23 @@ YouTube heavily throttles or blocks unauthenticated requests. You should provide
 1. Install the **Get cookies.txt locally** extension in your browser.
 2. Log into YouTube, export your cookies, and save them as `cookies.txt` in the PodQueue root directory.
 
-### 4. Deploying via Systemd
+### 4. JavaScript Runtime (Required for YouTube Challenge Solving)
+YouTube frequently updates its site with JavaScript-based signature and "n-parameter" decryption challenges. To download videos reliably without throttle/errors, `yt-dlp` requires a JavaScript runtime (preferably **Deno**) to solve these challenges using the built-in `yt-dlp-ejs` solver.
+
+Install **Deno** globally on your host system:
+- **Linux/WSL/macOS:**
+  ```bash
+  curl -fsSL https://deno.land/install.sh | sh
+  sudo ln -sf ~/.deno/bin/deno /usr/local/bin/deno
+  ```
+- **Windows (PowerShell):**
+  ```powershell
+  irm https://deno.land/install.ps1 | iex
+  ```
+
+Verify it is accessible by running `deno --version`.
+
+### 5. Deploying via Systemd
 The `setup.sh` script can automatically register a systemd unit. If installed, you can start the service with:
 
 ```bash
