@@ -1,148 +1,121 @@
 #!/bin/bash
-# PodQueue Setup Script for Linux/macOS
-# This script will set up the entire PodQueue environment including the Web UI
+# PodQueue FastAPI & Vanilla JS Setup Script
+set -e
 
-set -e  # Exit on error
-
-echo "PodQueue Setup Script for Linux/macOS"
-echo "======================================"
+echo "PodQueue Setup Script"
+echo "====================="
 echo
 
-# Get the script directory (project root)
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
+# Get repo root path
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$REPO_ROOT"
 
-# Check if we're in the correct directory
-if [ ! -d "scripts" ]; then
-    echo "Error: Please run this script from the root of the PodQueue repository."
-    echo "Current directory: $(pwd)"
-    echo
-    echo "Make sure you've cloned the repository and navigate to the project directory before running this script."
-    exit 1
-fi
+echo "Creating directories..."
+mkdir -p data/downloads data/feeds data/artwork data/logs data/state/channel_checks
+echo "✓ Run directories created under ./data"
 
-echo "Checking for required tools..."
-echo
-
-# Check if Python is installed
-if ! command -v python3 &> /dev/null; then
-    echo "Error: Python 3 is not installed or not in PATH."
-    echo "Please install Python 3 from https://www.python.org/downloads/"
-    exit 1
+# Create .env from template if missing
+if [ ! -f .env ]; then
+    if [ -f .env.example ]; then
+        cp .env.example .env
+        # Generate a random session secret
+        RAND_SECRET=$(head -c 16 /dev/urandom | xxd -p 2>/dev/null || echo "secret_$(date +%s)")
+        sed -i "s/SESSION_SECRET=changeme/SESSION_SECRET=$RAND_SECRET/g" .env
+        echo "✓ Created .env file from template (with auto-generated SESSION_SECRET)"
+        echo "  IMPORTANT: Update ADMIN_PASSWORD and BASE_URL in the .env file!"
+    else
+        echo "⚠ Warning: .env.example not found. Creating manual .env placeholder."
+        echo "BASE_URL=http://YOUR_SERVER_IP" > .env
+        echo "ADMIN_PASSWORD=changeme" >> .env
+        echo "SESSION_SECRET=secret_$(date +%s)" >> .env
+    fi
 else
-    PYTHON_VERSION=$(python3 --version)
-    echo "✓ Found $PYTHON_VERSION"
+    echo "✓ .env already exists"
 fi
 
-# Check if pip is installed
-if ! command -v pip3 &> /dev/null; then
-    echo "Error: pip3 is not installed."
-    echo "Please install pip or upgrade Python."
-    exit 1
-else
-    PIP_VERSION=$(pip3 --version)
-    echo "✓ Found $PIP_VERSION"
+# Create channels.json if missing
+if [ ! -f data/channels.json ]; then
+    echo "[]" > data/channels.json
+    echo "✓ Created empty data/channels.json"
 fi
 
+# Create cookies.txt placeholder
+if [ ! -f cookies.txt ]; then
+    echo "# Place YouTube cookies here" > cookies.txt
+    echo "✓ Created cookies.txt placeholder"
+fi
+
+# Virtual environment setup
 echo
-echo "Creating Python virtual environment..."
-if [ ! -d "venv" ]; then
+echo "Setting up Python virtual environment..."
+if [ ! -d venv ]; then
     python3 -m venv venv
     echo "✓ Virtual environment created"
 else
     echo "✓ Virtual environment already exists"
 fi
 
-# Activate virtual environment
+# Activate & install dependencies
 source venv/bin/activate
+echo "Installing dependencies..."
+pip install --upgrade pip
+pip install -r requirements.txt
+echo "✓ All Python dependencies installed successfully."
 
-echo
-echo "Installing dependencies from requirements.txt..."
-pip3 install --upgrade pip
-pip3 install -r scripts/requirements.txt
-if [ $? -ne 0 ]; then
-    echo "Error: Failed to install dependencies."
-    exit 1
-fi
-echo "✓ Dependencies installed"
-
-echo
-echo "Checking for required system tools..."
-echo
-
-# Check if yt-dlp is installed (will also be in venv)
-if ! command -v yt-dlp &> /dev/null; then
-    echo "⚠ Warning: yt-dlp is not installed or not in PATH."
-    echo "  It will be installed in the virtual environment."
-else
-    YTDLP_VERSION=$(yt-dlp --version)
-    echo "✓ Found yt-dlp version $YTDLP_VERSION"
-fi
-
-# Check if jq is installed
-if ! command -v jq &> /dev/null; then
-    echo "⚠ Warning: jq is not installed or not in PATH."
-    echo "  Install with: sudo apt install jq  (or equivalent for your OS)"
-    echo "  The downloader script requires jq to work."
-else
-    JQ_VERSION=$(jq --version)
-    echo "✓ Found jq version $JQ_VERSION"
-fi
-
-# Check if ffmpeg is installed
+# Check for ffmpeg
 if ! command -v ffmpeg &> /dev/null; then
+    echo
     echo "⚠ Warning: ffmpeg is not installed or not in PATH."
-    echo "  Install with: sudo apt install ffmpeg  (or equivalent for your OS)"
-    echo "  Audio conversion requires ffmpeg."
-else
-    FFMPEG_VERSION=$(ffmpeg -version | head -1)
-    echo "✓ Found $FFMPEG_VERSION"
+    echo "  FFmpeg is required for yt-dlp to extract audio to .m4a format."
+    echo "  Please install ffmpeg (e.g. 'sudo apt install ffmpeg' on Ubuntu)."
 fi
 
+# Systemd unit generation
 echo
-echo "Creating channels.json file if it doesn't exist..."
-if [ ! -f "scripts/channels.json" ]; then
-    if [ -f "scripts/channels.json.example" ]; then
-        cp "scripts/channels.json.example" "scripts/channels.json"
-        echo "✓ Created scripts/channels.json from example file."
-    else
-        echo "⚠ Warning: scripts/channels.json.example not found."
-        echo "  You will need to create scripts/channels.json manually."
-    fi
-else
-    echo "✓ scripts/channels.json already exists."
-fi
+echo "======================================"
+echo "Systemd Service Configuration"
+echo "======================================"
+SYSTEMD_FILE="/etc/systemd/system/podqueue.service"
 
-echo
-echo "Creating cookies.txt placeholder..."
-if [ ! -f "cookies.txt" ]; then
-    echo "# Place your YouTube cookies.txt file here" > cookies.txt
-    echo "✓ Created cookies.txt placeholder"
-    echo "  IMPORTANT: Export cookies from YouTube for best results!"
-    echo "  See README.md for instructions."
+read -p "Would you like to install the systemd service unit? (y/n): " INSTALL_SYSTEMD
+
+if [[ "$INSTALL_SYSTEMD" =~ ^[Yy]$ ]]; then
+    # Generate systemd file contents
+    SYSTEMD_CONTENT="[Unit]
+Description=PodQueue Podcast RSS Sync Service
+After=network.target
+
+[Service]
+Type=simple
+User=$(whoami)
+WorkingDirectory=$REPO_ROOT
+ExecStart=$REPO_ROOT/venv/bin/uvicorn podqueue.api.main:app --host 0.0.0.0 --port 8000 --workers 1
+Restart=always
+RestartSec=1s
+Nice=19
+IOSchedulingClass=2
+IOSchedulingPriority=7
+
+[Install]
+WantedBy=multi-user.target"
+
+    echo "Writing systemd service file..."
+    echo "$SYSTEMD_CONTENT" | sudo tee "$SYSTEMD_FILE" > /dev/null
+    
+    echo "Reloading systemd daemon and enabling service..."
+    sudo systemctl daemon-reload
+    sudo systemctl enable podqueue.service
+    
+    echo "✓ Systemd service podqueue.service enabled successfully."
+    echo "  To start: sudo systemctl start podqueue"
+    echo "  To view logs: journalctl -u podqueue -f"
 else
-    echo "✓ cookies.txt already exists."
+    echo "Skipping systemd installation. You can launch manually via:"
+    echo "  source venv/bin/activate"
+    echo "  uvicorn podqueue.api.main:app --host 0.0.0.0 --port 8000"
 fi
 
 echo
 echo "======================================"
 echo "Setup complete!"
-echo "======================================"
-echo
-echo "Next steps:"
-echo "  1. Export YouTube cookies (recommended):"
-echo "     - Install 'Get cookies.txt locally' Chrome extension"
-echo "     - Log into YouTube and export cookies"
-echo "     - Replace cookies.txt with the exported file"
-echo
-echo "  2. Configure channels:"
-echo "     - Edit scripts/channels.json with your YouTube channels"
-echo "     - Or use the Web UI to add channels"
-echo
-echo "  3. Start the Web UI:"
-echo "     ./webui/start.sh"
-echo
-echo "  4. Open your browser to:"
-echo "     http://localhost:8501"
-echo
 echo "======================================"
