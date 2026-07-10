@@ -231,7 +231,7 @@ def run_download_job(force: bool = False):
                         video_url = entry.get('url') or entry.get('webpage_url') or f"https://www.youtube.com/watch?v={video_id}"
                         
                         # Filter Shorts out based on URL or title
-                        title = entry.get('title', '').lower()
+                        title = (entry.get('title') or '').lower()
                         is_short = False
                         if video_url and '/shorts/' in video_url:
                             is_short = True
