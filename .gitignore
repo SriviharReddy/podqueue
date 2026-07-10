@@ -9,8 +9,10 @@ __pycache__/
 downloads/
 feeds/
 artwork/
+data/
 
 # Sensitive and configuration files
 cookies.txt
 channels.json
 channels_kemono.json
+.env
