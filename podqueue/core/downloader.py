@@ -53,10 +53,20 @@ class YTDLPLogger:
 
 def ytdlp_progress_hook(d):
     if d['status'] == 'downloading':
-        # Log download progress occasionally to prevent log bloat
-        # e.g., print status at start and in increments, or let yt-dlp output handle it
-        pass
+        total = d.get('total_bytes') or d.get('total_bytes_estimate')
+        downloaded = d.get('downloaded_bytes', 0)
+        if total:
+            percent = int(downloaded / total * 100)
+            # Only log every 20% to prevent console spam in Web UI
+            last_percent = getattr(ytdlp_progress_hook, 'last_percent', -20)
+            if percent >= last_percent + 20 or percent >= 100:
+                ytdlp_progress_hook.last_percent = percent
+                speed = d.get('_speed_str', 'unknown speed')
+                eta = d.get('_eta_str', 'unknown ETA')
+                job_logger.info(f"[download] {percent}% of {total / (1024*1024):.2f}MiB at {speed} ETA {eta}")
     elif d['status'] == 'finished':
+        # Reset last_percent for next download
+        ytdlp_progress_hook.last_percent = -20
         job_logger.info(f"Finished downloading: {d.get('filename')}. Processing...")
 
 def resolve_channel_url(url: str, cookies_file: Path = None) -> str:
@@ -268,6 +278,8 @@ def run_download_job(force: bool = False):
                     'progress_hooks': [ytdlp_progress_hook],
                     'outtmpl': str(download_dir / '%(id)s.%(ext)s'),
                     'postprocessor_args': {'ffmpeg': ['-threads', '1']},
+                    'noprogress': True,
+                    'quiet': True,
                     'no_warnings': True,
                 }
                 
