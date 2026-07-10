@@ -70,31 +70,33 @@ def ytdlp_progress_hook(d):
         job_logger.info(f"Finished downloading: {d.get('filename')}. Processing...")
 
 def resolve_channel_url(url: str, cookies_file: Path = None) -> str:
-    """Resolve @username or custom channel URL to standard channel URL using yt-dlp"""
-    if "@" not in url or "youtube.com" not in url:
-        return url
-    
-    cookie_path = get_valid_cookies_file() if cookies_file == settings.COOKIES_FILE else (str(cookies_file) if cookies_file and cookies_file.exists() else None)
-    
-    opts = {
-        'extract_flat': True,
-        'playlistend': 1,
-        'cookiefile': cookie_path,
-        'quiet': True,
-        'no_warnings': True,
-    }
-    with yt_dlp.YoutubeDL(opts) as ydl:
-        try:
-            info = ydl.extract_info(url, download=False)
-            # If it's a playlist or channel, get ID
-            channel_id = info.get('channel_id') or info.get('id')
-            if channel_id:
-                resolved = f"https://www.youtube.com/channel/{channel_id}"
-                logger.info(f"Resolved URL {url} to {resolved}")
-                return resolved
-        except Exception as e:
-            logger.error(f"Error resolving channel URL {url}: {e}")
-    return url
+    """Resolve @username or custom channel URL to standard channel URL and ensure it points to the videos tab"""
+    resolved = url
+    if "@" in url and "youtube.com" in url:
+        cookie_path = get_valid_cookies_file() if cookies_file == settings.COOKIES_FILE else (str(cookies_file) if cookies_file and cookies_file.exists() else None)
+        opts = {
+            'extract_flat': True,
+            'playlistend': 1,
+            'cookiefile': cookie_path,
+            'quiet': True,
+            'no_warnings': True,
+        }
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            try:
+                info = ydl.extract_info(url, download=False)
+                channel_id = info.get('channel_id') or info.get('id')
+                if channel_id:
+                    resolved = f"https://www.youtube.com/channel/{channel_id}"
+                    logger.info(f"Resolved URL {url} to {resolved}")
+            except Exception as e:
+                logger.error(f"Error resolving channel URL {url}: {e}")
+                
+    # If the URL points to a channel, ensure it targets the videos tab to extract individual uploads
+    if ("/channel/" in resolved or "/c/" in resolved or "/user/" in resolved) and not any(x in resolved for x in ["/videos", "/shorts", "/streams", "/playlists", "watch?v=", "playlist?"]):
+        resolved = resolved.rstrip("/") + "/videos"
+        logger.info(f"Appended /videos to channel URL: {resolved}")
+        
+    return resolved
 
 def cleanup_old_episodes(download_dir: Path, archive_file: Path, limit: int):
     """Delete old episodes exceeding the limit, sorting by modification time (newest first)"""
@@ -236,6 +238,9 @@ def run_download_job(force: bool = False):
                 if 'entries' in info:
                     for entry in info['entries']:
                         if not entry:
+                            continue
+                        # Layer 2 defense: Skip entries that are actually other playlists/tabs rather than videos
+                        if entry.get('_type') == 'playlist':
                             continue
                         video_id = entry.get('id')
                         video_url = entry.get('url') or entry.get('webpage_url') or f"https://www.youtube.com/watch?v={video_id}"
