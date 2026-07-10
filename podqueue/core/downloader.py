@@ -247,11 +247,11 @@ def run_download_job(force: bool = False):
             except Exception as e:
                 job_logger.error(f"Error scanning playlist for {channel.id}: {e}")
 
-        job_logger.info(f"Found {len(new_videos)} new episodes to download.")
-        
-        # Download new videos one by one
+        # Download new videos one by one (only download up to the channel limit)
         if new_videos:
-            for video_id, video_url in new_videos:
+            videos_to_download = new_videos[:channel.limit]
+            job_logger.info(f"Limiting downloads to the newest {len(videos_to_download)} new episodes (channel limit is {channel.limit}).")
+            for video_id, video_url in videos_to_download:
                 job_logger.info(f"Downloading video: {video_id} ({video_url})")
                 
                 ydl_opts = {
