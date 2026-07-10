@@ -12,6 +12,27 @@ from podqueue.core.channels import Channel, load_channels
 logger = logging.getLogger("podqueue")
 job_logger = logging.getLogger("podqueue_job")
 
+def get_valid_cookies_file() -> str | None:
+    path = settings.COOKIES_FILE
+    if not path.exists():
+        return None
+    try:
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            first_line = f.readline()
+            if "# Netscape HTTP Cookie File" in first_line:
+                return str(path)
+            for _ in range(5):
+                line = f.readline()
+                if not line:
+                    break
+                if len(line.split("\t")) >= 7:
+                    return str(path)
+    except Exception:
+        pass
+    
+    logger.warning(f"Cookies file '{path}' is not a valid Netscape format cookies file. Running without cookies.")
+    return None
+
 class YTDLPLogger:
     def __init__(self, logger_obj):
         self.logger = logger_obj
@@ -43,10 +64,12 @@ def resolve_channel_url(url: str, cookies_file: Path = None) -> str:
     if "@" not in url or "youtube.com" not in url:
         return url
     
+    cookie_path = get_valid_cookies_file() if cookies_file == settings.COOKIES_FILE else (str(cookies_file) if cookies_file and cookies_file.exists() else None)
+    
     opts = {
         'extract_flat': True,
         'playlistend': 1,
-        'cookiefile': str(cookies_file) if cookies_file and cookies_file.exists() else None,
+        'cookiefile': cookie_path,
         'quiet': True,
         'no_warnings': True,
     }
@@ -188,7 +211,7 @@ def run_download_job(force: bool = False):
         flat_opts = {
             'extract_flat': True,
             'playlistend': playlist_scan_limit,
-            'cookiefile': str(settings.COOKIES_FILE) if settings.COOKIES_FILE.exists() else None,
+            'cookiefile': get_valid_cookies_file(),
             'quiet': True,
             'no_warnings': True,
         }
@@ -232,7 +255,7 @@ def run_download_job(force: bool = False):
                 job_logger.info(f"Downloading video: {video_id} ({video_url})")
                 
                 ydl_opts = {
-                    'cookiefile': str(settings.COOKIES_FILE) if settings.COOKIES_FILE.exists() else None,
+                    'cookiefile': get_valid_cookies_file(),
                     'download_archive': str(archive_file),
                     'format': 'bestaudio[ext=m4a]/bestaudio/best',
                     'postprocessors': [{
