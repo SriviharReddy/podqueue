@@ -33,14 +33,10 @@ def sync_pipeline(force: bool = False):
     run_rss_job()
 
 def update_ytdlp():
-    """Runs pip update on yt-dlp and exits process to let systemd restart it"""
-    job_logger.info("Updating yt-dlp using pip...")
-    # The rebuild plan mentions yt-dlp and yt_dlp_ejs. Let's try to update yt-dlp first.
-    # We will try both if possible, but fallback to just yt-dlp if it's the only one.
-    cmd = [sys.executable, "-m", "pip", "install", "-U", "yt-dlp"]
+    """Runs pip update on yt-dlp and yt-dlp-ejs, and exits process to let systemd restart it"""
+    job_logger.info("Updating yt-dlp and yt-dlp-ejs using pip...")
+    cmd = [sys.executable, "-m", "pip", "install", "-U", "yt-dlp", "yt-dlp-ejs"]
     
-    # Try to also update yt_dlp_ejs if it was already installed, but to be safe, let's attempt to run pip install
-    # for yt-dlp.
     result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     job_logger.info(result.stdout)
     
