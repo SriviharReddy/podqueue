@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PodQueue Manager</title>
+    <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+    <!-- Login Screen -->
+    <div id="login-screen" class="login-container" style="display: none;">
+        <div class="login-card">
+            <div class="login-header">
+                <span class="brand-icon" style="font-size: 3rem; display: block; margin-bottom: 1rem;">🔒</span>
+                <h2>PodQueue Authenticate</h2>
+                <p style="color: var(--text-secondary); margin-top: 0.5rem; font-size: 0.9rem;">Please enter your admin password to log in.</p>
+            </div>
+            <form id="login-form">
+                <div class="form-group">
+                    <label for="admin-password" class="form-label">Password</label>
+                    <input type="password" id="admin-password" class="form-control" placeholder="••••••••" required>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; margin-top: 1rem;">Login</button>
+            </form>
+            <div id="login-error" style="color: var(--danger-color); text-align: center; margin-top: 1rem; font-size: 0.9rem; display: none;"></div>
+        </div>
+    </div>
+
+    <!-- Main App Layout -->
+    <div id="app-layout" class="app-container" style="display: none;">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="brand">
+                <span class="brand-icon">🎧</span>
+                <span class="brand-title">PodQueue</span>
+            </div>
+            <nav class="nav-menu">
+                <li class="nav-item active" data-target="channels-view">
+                    <button><span class="nav-icon">📺</span> <span class="nav-text">Channels</span></button>
+                </li>
+                <li class="nav-item" data-target="jobs-view">
+                    <button><span class="nav-icon">⚡</span> <span class="nav-text">Jobs & Logs</span></button>
+                </li>
+                <li class="nav-item" data-target="settings-view">
+                    <button><span class="nav-icon">⚙️</span> <span class="nav-text">Feeds & Settings</span></button>
+                </li>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="user-info">Logged in as <strong>Admin</strong></div>
+                <button id="logout-btn" class="btn btn-danger btn-sm" style="justify-content: center;">🚪 Logout</button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Channels View -->
+            <section id="channels-view" class="view-section active">
+                <div class="section-header">
+                    <h2 class="section-title">Subscribed Channels</h2>
+                    <button id="add-channel-btn" class="btn btn-primary">➕ Add Channel</button>
+                </div>
+                <div id="channels-grid" class="grid">
+                    <!-- Cards will be dynamically inserted here -->
+                </div>
+            </section>
+
+            <!-- Jobs View -->
+            <section id="jobs-view" class="view-section">
+                <div class="section-header">
+                    <h2 class="section-title">Sync Jobs & Execution Logs</h2>
+                </div>
+                <div class="jobs-panel">
+                    <!-- Logs log viewer -->
+                    <div class="log-viewer-container">
+                        <div class="log-header">
+                            <span style="font-weight: 600;">System Logs</span>
+                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                <span id="log-status-dot" class="badge">Idle</span>
+                                <button id="clear-logs-btn" class="btn btn-sm">Clear Terminal</button>
+                            </div>
+                        </div>
+                        <div id="log-console" class="log-viewer">Tailing job logs...</div>
+                    </div>
+
+                    <!-- Controls and status -->
+                    <div class="jobs-controls">
+                        <div class="card" style="backdrop-filter: none;">
+                            <h3 style="margin-bottom: 1rem;">System Status</h3>
+                            <div style="margin-bottom: 1.25rem; display: flex; flex-direction: column; gap: 0.5rem;">
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span style="color: var(--text-secondary);">State:</span>
+                                    <strong id="system-state-label">Idle</strong>
+                                </div>
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span style="color: var(--text-secondary);">Last Job:</span>
+                                    <span id="last-job-name">None</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span style="color: var(--text-secondary);">Last Code:</span>
+                                    <span id="last-job-code">-</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card" style="backdrop-filter: none;">
+                            <h3 style="margin-bottom: 1rem;">Actions</h3>
+                            <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                                <button id="run-sync-btn" class="btn btn-primary" style="justify-content: center;">⚡ Run Full Sync</button>
+                                <button id="run-rss-btn" class="btn" style="justify-content: center;">📁 Rebuild RSS XML</button>
+                                <button id="update-ytdlp-btn" class="btn" style="justify-content: center;">📦 Update yt-dlp</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Settings / Feeds View -->
+            <section id="settings-view" class="view-section">
+                <div class="section-header">
+                    <h2 class="section-title">Active Podcast Feeds</h2>
+                </div>
+                <div class="card" style="margin-bottom: 2rem;">
+                    <h3 style="margin-bottom: 1rem;">Integration Instructions</h3>
+                    <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                        Copy feed XML URLs below and paste them into your podcast player (Overcast, Pocket Casts, Apple Podcasts) to subscribe. 
+                        Files are streamed directly with range-request support.
+                    </p>
+                </div>
+                <div id="feeds-list" class="grid">
+                    <!-- Feed items will be dynamically inserted here -->
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Add Channel Modal -->
+    <div id="add-channel-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Add New YouTube Feed</h3>
+                <button class="modal-close" data-close="add-channel-modal">&times;</button>
+            </div>
+            <form id="add-channel-form">
+                <div class="form-group">
+                    <label for="add-chan-id" class="form-label">Feed Name / ID (alphanumeric, no spaces)</label>
+                    <input type="text" id="add-chan-id" class="form-control" placeholder="e.g. LexFridman" required pattern="^[a-zA-Z0-9_-]+$">
+                </div>
+                <div class="form-group">
+                    <label for="add-chan-url" class="form-label">YouTube URL (Channel ID or @username)</label>
+                    <input type="url" id="add-chan-url" class="form-control" placeholder="e.g. https://youtube.com/@lexfridman" required>
+                </div>
+                <div class="form-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div>
+                        <label for="add-chan-limit" class="form-label">Episode Limit</label>
+                        <input type="number" id="add-chan-limit" class="form-control" value="5" min="1" required>
+                    </div>
+                    <div>
+                        <label for="add-chan-interval" class="form-label">Sync Interval (Hours)</label>
+                        <input type="number" id="add-chan-interval" class="form-control" value="1" min="1" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="add-chan-sponsorblock">
+                        Remove Sponsors (SponsorBlock)
+                    </label>
+                </div>
+                <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 2rem;">
+                    <button type="button" class="btn" data-close="add-channel-modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Channel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Channel Modal -->
+    <div id="edit-channel-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="edit-modal-title">Edit Feed</h3>
+                <button class="modal-close" data-close="edit-channel-modal">&times;</button>
+            </div>
+            <form id="edit-channel-form">
+                <input type="hidden" id="edit-chan-id">
+                <div class="form-group">
+                    <label for="edit-chan-url" class="form-label">YouTube URL</label>
+                    <input type="url" id="edit-chan-url" class="form-control" readonly disabled>
+                </div>
+                <div class="form-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div>
+                        <label for="edit-chan-limit" class="form-label">Episode Limit</label>
+                        <input type="number" id="edit-chan-limit" class="form-control" min="1" required>
+                    </div>
+                    <div>
+                        <label for="edit-chan-interval" class="form-label">Sync Interval (Hours)</label>
+                        <input type="number" id="edit-chan-interval" class="form-control" min="1" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="edit-chan-sponsorblock">
+                        Remove Sponsors (SponsorBlock)
+                    </label>
+                </div>
+                <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 2rem;">
+                    <button type="button" class="btn" data-close="edit-channel-modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script type="module" src="/js/app.js"></script>
+</body>
+</html>
