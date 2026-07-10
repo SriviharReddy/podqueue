@@ -1,263 +1,106 @@
 # PodQueue
 
-**Convert YouTube channels into podcast RSS feeds.** PodQueue automatically downloads the latest videos from your favorite YouTube channels, converts them to audio (M4A), and generates RSS feeds that work with any podcast client.
+**Convert YouTube channels/playlists into podcast RSS feeds.** 
+PodQueue is a lightweight, self-hosted service that automatically syncs video uploads to audio (M4A) podcast episodes, hosting them with range-request compatible feeds for seamless playback in any podcast player (such as Overcast, Pocket Casts, or Apple Podcasts).
+
+Rebuilt from the ground up for maximum efficiency, it operates on a FastAPI asynchronous backend and a premium vanilla HTML/CSS/JS frontend, optimized to run within standard constraints (e.g. 1GB RAM on Oracle Cloud Always Free AMD).
+
+---
 
 ## Features
 
-- 🔄 **Automatic downloads** - Hourly checks for new videos from configured channels
-- 📻 **RSS feed generation** - Compatible with all major podcast apps (Pocket Casts, Overcast, etc.)
-- 🌐 **Web UI** - Easy channel management via Streamlit interface
-- 🗑️ **Auto-cleanup** - Configurable episode limits per channel
-- 📑 **Automatic chapters** - YouTube video sections converted to podcast chapters
-- 🔐 **YouTube authentication** - Cookie support to avoid bot detection
-
-## Quick Start
-
-### 1. Clone and Setup
-
-```bash
-git clone https://github.com/SriviharReddy/podqueue.git
-cd podqueue
-./setup.sh
-```
-
-### 2. Export YouTube Cookies (Highly Recommended)
-
-Without cookies, YouTube may block automated downloads:
-
-1. Install [Get cookies.txt locally](https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc) Chrome extension
-2. Log into YouTube in Chrome
-3. Export cookies as `cookies.txt`
-4. Place in project root: `podqueue/cookies.txt`
-
-### 3. Start the Web UI
-
-```bash
-./webui/start.sh
-```
-
-Open `http://localhost:8501` in your browser to configure channels.
-
-### 4. Subscribe to Podcast Feeds
-
-Access your RSS feeds at:
-- **Local**: `http://localhost:8501/feeds/CHANNEL_NAME.xml`
-- **Remote**: `http://YOUR_SERVER_IP/feeds/CHANNEL_NAME.xml`
-
-Add these URLs to your podcast app.
+- ⚡ **Lightweight & Fast** - Built on FastAPI (docs disabled in production for minimal memory usage).
+- 🔄 **Programmatic Downloader** - Leverages `yt-dlp` Python API (no external Bash/JQ dependency) with flat extraction pre-passes.
+- ⚙️ **Optimized for 1 GB RAM** - Sequential job runner (`filelock`) and single-threaded `ffmpeg` processing keep resources bounded.
+- 📅 **Built-in Scheduler** - In-process scheduler (`APScheduler`) manages periodic syncs and daily `yt-dlp` updates.
+- 📻 **iTunes & Podlove Compatible** - Feeds support standard iTunes authoring, custom artwork, and Simple Chapters (`psc:chapters`).
+- 🔒 **Secure Auth** - Password-only admin login backed by cryptographic session cookies.
+- 💻 **Premium Single Page App** - Modern, responsive dark UI built with pure CSS and vanilla JavaScript.
+- 📡 **Live Logs Console** - Real-time job output streaming using Server-Sent Events (SSE) with reconnect safety.
 
 ---
 
-## Table of Contents
-
-- [Manual Installation](#manual-installation)
-- [Configuration](#configuration)
-- [Running on Remote Server](#running-on-remote-server)
-- [Automation (Cron)](#automation-cron)
-- [Troubleshooting](#troubleshooting)
-- [Project Structure](#project-structure)
-
----
-
-## Manual Installation
-
-### Prerequisites
-
-| Dependency | Installation |
-|------------|--------------|
-| Python 3.8+ | `sudo apt install python3 python3-pip` |
-| yt-dlp | `pip install yt-dlp` |
-| jq | `sudo apt install jq` |
-| ffmpeg | `sudo apt install ffmpeg` |
-
-### Setup Steps
-
-1. **Install Python dependencies**:
-   ```bash
-   pip install -r scripts/requirements.txt
-   ```
-
-2. **Configure channels** - Copy and edit `scripts/channels.json`:
-   ```bash
-   cp scripts/channels.json.example scripts/channels.json
-   ```
-
-3. **Set BASE_DIR** - Edit `scripts/downloader.sh` and `scripts/rss_generator.py` to set the absolute path to your project directory.
-
-4. **Add cookies** (recommended):
-   Place `cookies.txt` in the project root to avoid YouTube bot detection.
-
----
-
-## Configuration
-
-### channels.json Format
-
-```json
-[
-  {
-    "id": "ChannelName",
-    "url": "https://www.youtube.com/channel/CHANNEL_ID",
-    "limit": 5
-  }
-]
-```
-
-| Field | Description |
-|-------|-------------|
-| `id` | Unique identifier (used for folder and feed names) |
-| `url` | YouTube channel or playlist URL |
-| `limit` | Maximum episodes to keep (older ones auto-deleted) |
-| `check_interval_hours` | How often this feed should be checked when the hourly cron runs |
-| `sponsorblock` | Set to `true` to remove SponsorBlock-marked segments for this feed |
-
-**Supported URLs**:
-- Channel: `https://www.youtube.com/channel/UC...`
-- Playlist: `https://www.youtube.com/playlist?list=PL...`
-- Username: `https://www.youtube.com/@channelname` (converted via Web UI)
-
-**Optional per-feed controls**:
-- `check_interval_hours`: Keep cron hourly but only check a specific feed every N hours
-- `sponsorblock`: Enable yt-dlp SponsorBlock removal for that feed only
-
-**Channel removal behavior**:
-- Removing a channel in the Web UI also deletes its downloaded episode folder
-- The generated RSS feed XML for that channel is deleted as well
-- Any per-channel interval state file is removed so stale scheduling data does not linger
-
----
-
-## Running on Remote Server
-
-### Web UI Access
-
-```bash
-cd webui
-streamlit run app.py --server.address 0.0.0.0 --server.port 8501
-```
-
-### Firewall Configuration
-
-**Oracle Cloud**: Add security list rule for port 8501 (TCP, source 0.0.0.0/0)
-
-**Linux (ufw)**:
-```bash
-sudo ufw allow 8501/tcp
-```
-
-### Production Recommendations
-
-- Use a reverse proxy (Nginx) with SSL/TLS
-- Set up authentication for the Web UI
-- Use systemd or supervisor to keep services running
-- Serve the `feeds/` directory via HTTP for podcast clients
-
----
-
-## Automation (Cron)
-
-Edit crontab with `crontab -e`:
-
-```bash
-# Update yt-dlp daily (keeps YouTube challenge solver current)
-0 2 * * * /path/to/venv/bin/pip install -U yt-dlp yt_dlp_ejs
-
-# Download new episodes hourly
-0 * * * * /path/to/podqueue/scripts/downloader.sh
-
-# Generate RSS feeds hourly (after downloader)
-5 * * * * /path/to/podqueue/venv/bin/python /path/to/podqueue/scripts/rss_generator.py
-```
-
-**Important**: Keep `yt-dlp` and `yt_dlp_ejs` updated to avoid YouTube bot detection issues.
-
----
-
-## Troubleshooting
-
-### No New Episodes Downloading
-
-**Symptom**: Downloader runs but no new episodes appear.
-
-**Causes & Fixes**:
-
-1. **Expired cookies** - Re-export YouTube cookies (see [Quick Start](#2-export-youtube-cookies-highly-recommended))
-
-2. **Outdated yt-dlp** - Update manually:
-   ```bash
-   pip install -U yt-dlp yt_dlp_ejs
-   ```
-
-3. **Check logs**:
-   ```bash
-   tail -100 logs/cron.log
-   ```
-
-### File Limits Not Enforced
-
-The cleanup runs before and after downloads. To manually clean up:
-
-```bash
-cd /path/to/downloads/ChannelName
-ls -t *.m4a | awk 'NR>LIMIT' | xargs rm
-```
-
-### RSS Feeds Not Updating
-
-Run the generator manually:
-```bash
-python3 scripts/rss_generator.py
-```
-
-### YouTube Bot Detection Errors
-
-Common errors:
-- `Sign in to confirm you're not a bot`
-- `n challenge solving failed`
-- `Requested format is not available`
-
-**Fix**: Update yt-dlp and refresh cookies:
-```bash
-pip install -U yt-dlp yt_dlp_ejs
-# Then re-export cookies.txt
-```
-
-### SSH Connection Issues (Remote Servers)
-
-If SSH times out:
-1. Check cloud provider's security groups/firewall rules
-2. Verify port 22 is allowed
-3. Restart VM if needed
-
----
-
-## Project Structure
+## Directory Structure
 
 ```
 podqueue/
-├── scripts/
-│   ├── downloader.sh          # Downloads videos from YouTube
-│   ├── rss_generator.py       # Generates RSS feeds
-│   └── channels.json          # Channel configuration
-├── downloads/                  # Downloaded audio files (by channel)
-├── feeds/                      # Generated RSS feeds
-├── artwork/                    # Channel artwork
-├── webui/                      # Streamlit web interface
-├── cookies.txt                 # YouTube authentication
-└── MAINTENANCE.md              # Detailed troubleshooting guide
+├── podqueue/               # Python package
+│   ├── api/                # FastAPI routers (auth, channels, jobs)
+│   ├── core/               # Downloader, RSS Generator, Scheduler, Job Runner
+│   └── utils/              # Media helpers, logging configuration
+├── static/                 # Frontend SPA files
+├── data/                   # Runtime data (gitignored)
+│   ├── downloads/          # Downloaded audio episodes
+│   ├── feeds/              # Generated podcast XML feeds
+│   └── logs/               # App and job log rotation
+├── .env.example            # Environment template
+├── cookies.txt             # YouTube authentication cookies (gitignored)
+├── requirements.txt        # Python dependencies
+├── setup.sh                # Setup and systemd deployment script
+└── README.md
 ```
 
 ---
 
-## Contributing
+## Quick Start
 
-Pull requests are welcome! For major changes, please open an issue first to discuss what you would like to change.
+### 1. Installation
+Run the setup script from the root of the repository. It will create a Python virtual environment, generate a `.env` file, and prepare runtime directories:
 
-## License
+```bash
+./setup.sh
+```
 
-MIT License
+### 2. Configure Environment
+Update the `.env` configuration file created in your project root:
 
-## Acknowledgments
+```ini
+BASE_URL=http://YOUR_SERVER_IP          # Public URL used in RSS feed links
+ADMIN_PASSWORD=changeme                 # Plain text password for Web UI access
+SESSION_SECRET=your_generated_secret    # Cookie signature secret (generated by setup.sh)
+PORT=8000                               # Port to run the FastAPI app
+HOST=0.0.0.0                            # Bind address
+```
 
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp) - YouTube downloader
-- [Streamlit](https://streamlit.io/) - Web UI framework
+### 3. YouTube Cookies (Highly Recommended)
+YouTube heavily throttles or blocks unauthenticated requests. You should provide a `cookies.txt` file in the project root:
+
+1. Install the **Get cookies.txt locally** extension in your browser.
+2. Log into YouTube, export your cookies, and save them as `cookies.txt` in the PodQueue root directory.
+
+### 4. Deploying via Systemd
+The `setup.sh` script can automatically register a systemd unit. If installed, you can start the service with:
+
+```bash
+sudo systemctl start podqueue
+sudo systemctl status podqueue
+```
+
+Alternatively, run the development server manually:
+```bash
+source venv/bin/activate
+uvicorn podqueue.api.main:app --host 0.0.0.0 --port 8000
+```
+
+---
+
+## API Documentation
+
+### Public Endpoints (No Auth)
+- `GET /feeds/{feed_name}.xml` - Serves the generated podcast RSS feed.
+- `GET /downloads/{channel_id}/{file_name}` - Serves podcast audio files (supporting HTTP Range requests).
+- `GET /artwork/{channel_id}.jpg` - Serves cached channel artwork.
+
+### Protected API (Requires Session Cookie)
+- `POST /api/login` - Authenticate using password.
+- `POST /api/logout` - Invalidate current session.
+- `GET /api/me` - Retrieve authentication status.
+- `GET /api/channels` - List all subscribed channels and check statuses.
+- `POST /api/channels` - Subscribe to a channel (converts `@username` URLs automatically).
+- `PUT /api/channels/{id}` - Modify limit, interval, or SponsorBlock setting.
+- `DELETE /api/channels/{id}` - Unsubscribe and delete all channel assets.
+- `POST /api/jobs/download` - Trigger manual download/RSS sync pipeline.
+- `POST /api/jobs/rss` - Regenerate RSS feeds XML manually.
+- `POST /api/jobs/update-ytdlp` - Update `yt-dlp` and restart process.
+- `GET /api/jobs/status` - Get execution state of background runner.
+- `GET /api/jobs/logs/stream` - SSE log viewer feed.
