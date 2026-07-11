@@ -8,6 +8,7 @@ const loginForm = document.getElementById('login-form');
 const loginPassword = document.getElementById('admin-password');
 const loginError = document.getElementById('login-error');
 const logoutBtn = document.getElementById('logout-btn');
+const logoutBtnMobile = document.getElementById('logout-btn-mobile');
 
 const navItems = document.querySelectorAll('.nav-item');
 const views = document.querySelectorAll('.view-section');
@@ -64,16 +65,46 @@ async function loadFeedsList() {
         document.querySelectorAll('.copy-feed-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 const url = btn.dataset.url;
-                navigator.clipboard.writeText(url).then(() => {
+                copyToClipboard(url).then(() => {
                     const originalText = btn.textContent;
                     btn.textContent = 'Copied!';
                     setTimeout(() => btn.textContent = originalText, 1500);
+                }).catch(err => {
+                    console.error('Failed to copy feed URL:', err);
                 });
             });
         });
     } catch (err) {
         feedsList.innerHTML = `<div style="color: var(--danger-color); grid-column: 1/-1;">Failed to load feeds: ${err.message}</div>`;
     }
+}
+
+function copyToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        return navigator.clipboard.writeText(text);
+    }
+    return new Promise((resolve, reject) => {
+        try {
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.top = "0";
+            textArea.style.left = "0";
+            textArea.style.position = "fixed";
+            textArea.style.opacity = "0";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            const successful = document.execCommand('copy');
+            document.body.removeChild(textArea);
+            if (successful) {
+                resolve();
+            } else {
+                reject(new Error("Fallback copy command was unsuccessful"));
+            }
+        } catch (err) {
+            reject(err);
+        }
+    });
 }
 
 async function init() {
@@ -103,6 +134,15 @@ async function init() {
         } catch (e) {}
         showLogin();
     });
+    
+    if (logoutBtnMobile) {
+        logoutBtnMobile.addEventListener('click', async () => {
+            try {
+                await API.logout();
+            } catch (e) {}
+            showLogin();
+        });
+    }
     
     try {
         await API.checkAuth();
