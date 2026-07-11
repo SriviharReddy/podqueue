@@ -84,7 +84,42 @@ Install **Deno** globally on your host system:
 
 Verify it is accessible by running `deno --version`.
 
-### 5. Deploying via Systemd
+### 5. Bypassing Cloud IP Bans (e.g. on Oracle Cloud)
+YouTube heavily blocks or requires bot challenges (such as "Sign in to confirm you're not a bot") for requests originating from datacenter IP ranges (e.g., Oracle Cloud, AWS, DigitalOcean).
+
+To bypass this reliably, you can route `yt-dlp` traffic through a proxy or VPN.
+
+#### Option A: Cloudflare WARP (Recommended & Free)
+Cloudflare WARP runs locally and exposes a SOCKS5 proxy, routing traffic through Cloudflare's network which is generally not flagged by YouTube.
+
+1. Install Cloudflare WARP on your Linux host:
+   ```bash
+   curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | sudo gpg --yes --dearmor -o /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
+   echo "deb [arch=amd64 signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/cloudflare-client.list
+   sudo apt-get update && sudo apt-get install -y cloudflare-warp
+   ```
+2. Register and configure WARP in SOCKS5 proxy mode:
+   ```bash
+   warp-cli --accept-tos registration new
+   warp-cli --accept-tos mode proxy
+   warp-cli --accept-tos connect
+   ```
+3. Verify it is running on SOCKS5 port 40000:
+   ```bash
+   curl -s --proxy socks5://127.0.0.1:40000 https://ipinfo.io/ip
+   ```
+4. Add the proxy setting to your `.env` file:
+   ```ini
+   YTDLP_PROXY=socks5://127.0.0.1:40000
+   ```
+
+#### Option B: Dedicated/Residential Proxy
+If you have a paid proxy subscription, add it directly to `.env`:
+```ini
+YTDLP_PROXY=http://username:password@proxy-server.com:8080
+```
+
+### 6. Deploying via Systemd
 The `setup.sh` script can automatically register a systemd unit. If installed, you can start the service with:
 
 ```bash

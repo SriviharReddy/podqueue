@@ -80,6 +80,7 @@ def resolve_channel_url(url: str, cookies_file: Path = None) -> str:
             'cookiefile': cookie_path,
             'quiet': True,
             'no_warnings': True,
+            'proxy': settings.YTDLP_PROXY,
         }
         with yt_dlp.YoutubeDL(opts) as ydl:
             try:
@@ -226,6 +227,7 @@ def run_download_job(force: bool = False):
             'cookiefile': get_valid_cookies_file(),
             'quiet': True,
             'no_warnings': True,
+            'proxy': settings.YTDLP_PROXY,
         }
         
         new_videos = []
@@ -286,6 +288,7 @@ def run_download_job(force: bool = False):
                     'noprogress': True,
                     'quiet': True,
                     'no_warnings': True,
+                    'proxy': settings.YTDLP_PROXY,
                 }
                 
                 # Add SponsorBlock if enabled

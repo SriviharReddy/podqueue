@@ -26,6 +26,8 @@ class Settings:
         self.HOST = os.getenv("HOST", "0.0.0.0")
         self.LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
         self.SCHEDULE_INTERVAL_MINUTES = int(os.getenv("SCHEDULE_INTERVAL_MINUTES", "60"))
+        # Optional proxy for yt-dlp (e.g. socks5://127.0.0.1:40000 for Cloudflare Warp)
+        self.YTDLP_PROXY = os.getenv("YTDLP_PROXY", "").strip() or None
         
         # Deduced paths inside DATA_DIR
         self.DOWNLOADS_DIR = self.DATA_DIR / "downloads"
