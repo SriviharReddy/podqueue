@@ -227,6 +227,7 @@ def run_download_job(force: bool = False):
                 info = ydl.extract_info(resolved_url, download=False)
                 
                 if 'entries' in info:
+                    valid_count = 0
                     for entry in info['entries']:
                         if not entry:
                             continue
@@ -247,6 +248,10 @@ def run_download_job(force: bool = False):
                             
                         if is_short:
                             continue
+                            
+                        valid_count += 1
+                        if valid_count > channel.limit:
+                            break
                             
                         if video_id and video_id not in archive_set:
                             new_videos.append((video_id, video_url))
