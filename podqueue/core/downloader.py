@@ -129,19 +129,8 @@ def cleanup_old_episodes(download_dir: Path, archive_file: Path, limit: int):
             except Exception as e:
                 job_logger.error(f"Error deleting audio file {file_path}: {e}")
                 
-            # Remove from archive file
-            if archive_file.exists():
-                job_logger.info(f"[{download_dir.name}] Removing {video_id} from archive file")
-                try:
-                    lines = []
-                    with open(archive_file, "r", encoding="utf-8") as f:
-                        lines = f.readlines()
-                    with open(archive_file, "w", encoding="utf-8") as f:
-                        for line in lines:
-                            if f"youtube {video_id}" not in line:
-                                f.write(line)
-                except Exception as e:
-                    job_logger.error(f"Error updating archive file: {e}")
+            # Keep in archive file to prevent yt-dlp from infinitely redownloading this pruned episode in future runs.
+            pass
 
 def cleanup_leftovers(download_dir: Path):
     """Clean up leftover temp files"""
