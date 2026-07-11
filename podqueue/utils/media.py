@@ -148,3 +148,35 @@ def parse_chapters_from_description(description):
             })
     
     return chapters
+
+import json
+from pathlib import Path
+
+def get_episode_sort_key(file_path: Path) -> tuple:
+    """Get a sorting key for an audio file based on its YouTube upload date from .info.json,
+    falling back to file modification time."""
+    mtime = 0.0
+    try:
+        mtime = file_path.stat().st_mtime
+    except Exception:
+        pass
+
+    info_file = file_path.with_suffix(".info.json")
+    if info_file.exists():
+        try:
+            with open(info_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                upload_date = data.get("upload_date")
+                if upload_date and len(upload_date) == 8 and upload_date.isdigit():
+                    return (upload_date, mtime)
+        except Exception:
+            pass
+
+    # Fallback: format mtime as YYYYMMDD
+    try:
+        mtime_dt = datetime.datetime.fromtimestamp(mtime, datetime.timezone.utc)
+        mtime_str = mtime_dt.strftime("%Y%m%d")
+        return (mtime_str, mtime)
+    except Exception:
+        return ("00000000", mtime)
+

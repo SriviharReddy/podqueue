@@ -14,7 +14,8 @@ from podqueue.utils.media import (
     sanitize_title,
     get_best_thumbnail,
     get_best_episode_thumbnail,
-    parse_chapters_from_description
+    parse_chapters_from_description,
+    get_episode_sort_key
 )
 
 logger = logging.getLogger("podqueue")
@@ -96,8 +97,8 @@ def generate_rss(feed_name: str, podcast_dir: Path):
         
     # Find all audio files
     audio_files = sorted(
-        [f for f in os.listdir(podcast_dir) if f.endswith('.m4a')],
-        key=lambda f: os.path.getmtime(podcast_dir / f),
+        [f for f in os.listdir(podcast_dir) if f.endswith('.m4a') and not '.temp.' in f],
+        key=lambda f: get_episode_sort_key(podcast_dir / f),
         reverse=True
     )
     job_logger.info(f"Found {len(audio_files)} audio files")
