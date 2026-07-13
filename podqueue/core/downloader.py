@@ -289,10 +289,21 @@ def run_download_job(force: bool = False):
                 # Add SponsorBlock if enabled
                 sb_val = channel.sponsorblock
                 if sb_val:
-                    cat = 'all' if sb_val in (True, 'true', '1', 'yes', 'on') else sb_val
+                    if sb_val in (True, 'true', '1', 'yes', 'on'):
+                        categories = ['sponsor', 'intro', 'outro', 'selfpromo', 'preview', 'filler', 'interaction', 'music_offtopic', 'hook']
+                    elif isinstance(sb_val, str):
+                        categories = [c.strip() for c in sb_val.split(',')]
+                    else:
+                        categories = ['sponsor']
+
                     ydl_opts['postprocessors'].append({
                         'key': 'SponsorBlock',
-                        'categories': [cat] if isinstance(cat, str) else cat,
+                        'categories': categories,
+                        'when': 'after_filter',
+                    })
+                    ydl_opts['postprocessors'].append({
+                        'key': 'ModifyChapters',
+                        'remove_sponsor_segments': set(categories),
                     })
 
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
