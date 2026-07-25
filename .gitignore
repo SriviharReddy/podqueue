@@ -16,3 +16,7 @@ cookies.txt
 channels.json
 channels_kemono.json
 .env
+
+# Worktrees
+.worktrees/
+worktrees/
