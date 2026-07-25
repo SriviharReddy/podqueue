@@ -97,7 +97,7 @@ def generate_rss(feed_name: str, podcast_dir: Path):
         
     # Find all audio files
     audio_files = sorted(
-        [f for f in os.listdir(podcast_dir) if f.endswith('.m4a') and not '.temp.' in f],
+        [f for f in os.listdir(podcast_dir) if (f.endswith('.m4a') or f.endswith('.mp3')) and not '.temp.' in f],
         key=lambda f: get_episode_sort_key(podcast_dir / f),
         reverse=True
     )
@@ -107,6 +107,7 @@ def generate_rss(feed_name: str, podcast_dir: Path):
         file_path = podcast_dir / filename
         file_url = f"{settings.BASE_URL}/downloads/{feed_name}/{filename}"
         file_size = os.path.getsize(file_path)
+        mime_type = "audio/mpeg" if filename.endswith(".mp3") else "audio/mp4"
         
         video_id = os.path.splitext(filename)[0]
         info_file_path = podcast_dir / f"{video_id}.info.json"
@@ -130,7 +131,7 @@ def generate_rss(feed_name: str, podcast_dir: Path):
                 
                 ET.SubElement(item, "pubDate").text = rfc2822_format(pub_date)
                 ET.SubElement(item, "guid", isPermaLink="false").text = file_url
-                ET.SubElement(item, "enclosure", url=file_url, length=str(file_size), type="audio/mp4")
+                ET.SubElement(item, "enclosure", url=file_url, length=str(file_size), type=mime_type)
                 
                 description = episode_info.get("description", "")
                 if description:
@@ -157,12 +158,12 @@ def generate_rss(feed_name: str, podcast_dir: Path):
                 pub_date = datetime.datetime.fromtimestamp(os.path.getmtime(file_path), datetime.timezone.utc)
                 ET.SubElement(item, "pubDate").text = rfc2822_format(pub_date)
                 ET.SubElement(item, "guid", isPermaLink="false").text = file_url
-                ET.SubElement(item, "enclosure", url=file_url, length=str(file_size), type="audio/mp4")
+                ET.SubElement(item, "enclosure", url=file_url, length=str(file_size), type=mime_type)
         else:
             pub_date = datetime.datetime.fromtimestamp(os.path.getmtime(file_path), datetime.timezone.utc)
             ET.SubElement(item, "pubDate").text = rfc2822_format(pub_date)
             ET.SubElement(item, "guid", isPermaLink="false").text = file_url
-            ET.SubElement(item, "enclosure", url=file_url, length=str(file_size), type="audio/mp4")
+            ET.SubElement(item, "enclosure", url=file_url, length=str(file_size), type=mime_type)
             
     tree = ET.ElementTree(rss)
     output_path = settings.FEEDS_DIR / f"{feed_name}.xml"

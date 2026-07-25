@@ -68,7 +68,7 @@ async def list_feeds(request: Request):
                 title = channel.find("title").text if channel is not None and channel.find("title") is not None else file_path.stem
                 
                 downloads_subdir = settings.DOWNLOADS_DIR / file_path.stem
-                audio_count = len(list(downloads_subdir.glob("*.m4a"))) if downloads_subdir.exists() else 0
+                audio_count = len(list(downloads_subdir.glob("*.m4a")) + list(downloads_subdir.glob("*.mp3"))) if downloads_subdir.exists() else 0
                 
                 feeds.append({
                     "name": file_path.stem,

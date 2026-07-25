@@ -103,7 +103,7 @@ def resolve_channel_url(url: str, cookies_file: Path = None) -> str:
 def cleanup_old_episodes(download_dir: Path, archive_file: Path, limit: int):
     """Delete old episodes exceeding the limit, sorting by YouTube upload date (newest first)"""
     audio_files = sorted(
-        list(download_dir.glob("*.m4a")),
+        list(download_dir.glob("*.m4a")) + list(download_dir.glob("*.mp3")),
         key=get_episode_sort_key,
         reverse=True
     )
@@ -136,7 +136,7 @@ def cleanup_old_episodes(download_dir: Path, archive_file: Path, limit: int):
 def cleanup_leftovers(download_dir: Path):
     """Clean up leftover temp files"""
     job_logger.info(f"[{download_dir.name}] Cleaning up leftover temp and mp4 files...")
-    for ext in ("*.mp4", "*.temp.mp4", "*.part", "*.ytdl", "*.temp.m4a"):
+    for ext in ("*.mp4", "*.temp.mp4", "*.part", "*.ytdl", "*.temp.m4a", "*.temp.mp3"):
         for f in download_dir.glob(ext):
             if f.is_file() and not f.name.endswith(".info.json"):
                 try:

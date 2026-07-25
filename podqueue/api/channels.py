@@ -34,7 +34,7 @@ async def list_channels(request: Request):
         downloads_subdir = settings.DOWNLOADS_DIR / c.id
         audio_count = 0
         if downloads_subdir.exists():
-            audio_count = len(list(downloads_subdir.glob("*.m4a")))
+            audio_count = len(list(downloads_subdir.glob("*.m4a")) + list(downloads_subdir.glob("*.mp3")))
             
         last_check = None
         next_check = None
