@@ -116,7 +116,7 @@
                             <div style="display: flex; flex-direction: column; gap: 0.75rem;">
                                 <button id="run-sync-btn" class="btn btn-primary" style="justify-content: center;">⚡ Run Full Sync</button>
                                 <button id="run-rss-btn" class="btn" style="justify-content: center;">📁 Rebuild RSS XML</button>
-                                <button id="update-ytdlp-btn" class="btn" style="justify-content: center;">📦 Update yt-dlp</button>
+                                <button id="update-ytdlp-btn" class="btn" style="justify-content: center;">📦 Update Upstream Tools</button>
                             </div>
                         </div>
                     </div>
@@ -146,7 +146,7 @@
     <div id="add-channel-modal" class="modal-overlay">
         <div class="modal">
             <div class="modal-header">
-                <h3>Add New YouTube Feed</h3>
+                <h3>Add New Feed / Channel</h3>
                 <button class="modal-close" data-close="add-channel-modal">&times;</button>
             </div>
             <form id="add-channel-form">
@@ -155,8 +155,8 @@
                     <input type="text" id="add-chan-id" class="form-control" placeholder="e.g. LexFridman" required pattern="^[a-zA-Z0-9_-]+$">
                 </div>
                 <div class="form-group">
-                    <label for="add-chan-url" class="form-label">YouTube URL (Channel ID or @username)</label>
-                    <input type="url" id="add-chan-url" class="form-control" placeholder="e.g. https://youtube.com/@lexfridman" required>
+                    <label for="add-chan-url" class="form-label">YouTube or Pawchive URL</label>
+                    <input type="url" id="add-chan-url" class="form-control" placeholder="e.g. YouTube or Pawchive creator page" required>
                 </div>
                 <div class="form-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                     <div>
@@ -192,7 +192,7 @@
             <form id="edit-channel-form">
                 <input type="hidden" id="edit-chan-id">
                 <div class="form-group">
-                    <label for="edit-chan-url" class="form-label">YouTube URL</label>
+                    <label for="edit-chan-url" class="form-label">Source URL</label>
                     <input type="url" id="edit-chan-url" class="form-control" readonly disabled>
                 </div>
                 <div class="form-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">

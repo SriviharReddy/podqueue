@@ -73,10 +73,13 @@ export async function loadChannelsList() {
                 ? new Date(c.next_check * 1000).toLocaleString() 
                 : 'Pending';
                 
+            const isPawchive = c.url && c.url.toLowerCase().includes('pawchive.');
+            const icon = isPawchive ? '📻' : '📺';
+            
             return `
                 <div class="card">
                     <div class="card-header" style="margin-bottom: 1rem;">
-                        <h3 class="card-title">📺 ${c.id}</h3>
+                        <h3 class="card-title">${icon} ${c.id}</h3>
                         <span class="badge ${c.audio_count > 0 ? 'badge-success' : ''}">${c.audio_count} eps</span>
                     </div>
                     <div class="card-meta">
