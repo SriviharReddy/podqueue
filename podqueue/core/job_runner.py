@@ -33,9 +33,9 @@ def sync_pipeline(force: bool = False):
     run_rss_job()
 
 def update_ytdlp():
-    """Runs pip update on yt-dlp and yt-dlp-ejs, and exits process to let systemd restart it"""
-    job_logger.info("Updating yt-dlp and yt-dlp-ejs using pip...")
-    cmd = [sys.executable, "-m", "pip", "install", "-U", "yt-dlp", "yt-dlp-ejs"]
+    """Runs pip update on yt-dlp, yt-dlp-ejs, and gallery-dl, and exits process to let systemd restart it"""
+    job_logger.info("Updating yt-dlp, yt-dlp-ejs, and gallery-dl using pip...")
+    cmd = [sys.executable, "-m", "pip", "install", "-U", "yt-dlp", "yt-dlp-ejs", "gallery-dl"]
     
     result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     job_logger.info(result.stdout)
@@ -43,7 +43,7 @@ def update_ytdlp():
     if result.returncode != 0:
         raise RuntimeError(f"pip install failed with exit code {result.returncode}")
         
-    job_logger.info("yt-dlp updated successfully. Process exiting now to trigger systemd auto-restart.")
+    job_logger.info("Upstream tools updated successfully. Process exiting now to trigger systemd auto-restart.")
     # Flush logs and exit
     time.sleep(1)
     os._exit(0)
