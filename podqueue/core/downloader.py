@@ -9,6 +9,7 @@ from typing import List
 from podqueue.config import settings
 from podqueue.core.channels import Channel, load_channels
 from podqueue.utils.media import get_episode_sort_key
+from podqueue.core.pawchive import is_pawchive_url, run_pawchive_download
 
 logger = logging.getLogger("podqueue")
 job_logger = logging.getLogger("podqueue_job")
@@ -170,6 +171,13 @@ def run_download_job(force: bool = False):
     for channel in channels:
         job_logger.info(f"--- Processing: {channel.id} ---")
         
+        if is_pawchive_url(channel.url):
+            try:
+                run_pawchive_download(channel, force=force)
+            except Exception as e:
+                job_logger.error(f"Error in Pawchive downloader for {channel.id}: {e}")
+            continue
+            
         # Check interval
         last_check_file = settings.STATE_DIR / f"{channel.id}.last_check"
         current_time = int(time.time())
@@ -202,8 +210,9 @@ def run_download_job(force: bool = False):
                 with open(archive_file, "r", encoding="utf-8") as f:
                     for line in f:
                         line = line.strip()
-                        if line.startswith("youtube "):
-                            archive_set.add(line.split(" ")[1])
+                        parts = line.split(" ")
+                        if len(parts) >= 2 and parts[0] in ("youtube", "pawchive"):
+                            archive_set.add(parts[1])
             except Exception as e:
                 job_logger.error(f"Error reading archive file: {e}")
 
