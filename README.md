@@ -1,7 +1,7 @@
 # PodQueue
 
-**Convert YouTube channels/playlists into podcast RSS feeds.** 
-PodQueue is a lightweight, self-hosted service that automatically syncs video uploads to audio (M4A) podcast episodes, hosting them with range-request compatible feeds for seamless playback in any podcast player (such as Overcast, Pocket Casts, or Apple Podcasts).
+**Convert YouTube channels/playlists and Pawchive patron archives into podcast RSS feeds.** 
+PodQueue is a lightweight, self-hosted service that automatically syncs video/post uploads to audio (M4A or MP3) podcast episodes, hosting them with range-request compatible feeds for seamless playback in any podcast player (such as Overcast, Pocket Casts, or Apple Podcasts).
 
 Rebuilt from the ground up for maximum efficiency, it operates on a FastAPI asynchronous backend and a premium vanilla HTML/CSS/JS frontend, optimized to run within standard constraints (e.g. 1GB RAM on Oracle Cloud Always Free AMD).
 
@@ -10,10 +10,10 @@ Rebuilt from the ground up for maximum efficiency, it operates on a FastAPI asyn
 ## Features
 
 - ⚡ **Lightweight & Fast** - Built on FastAPI (docs disabled in production for minimal memory usage).
-- 🔄 **Programmatic Downloader** - Leverages `yt-dlp` Python API (no external Bash/JQ dependency) with flat extraction pre-passes.
+- 🔄 **Programmatic Downloader** - Leverages `yt-dlp` Python API and `gallery-dl` (no external Bash/JQ dependencies) with flat extraction pre-passes.
 - ⚙️ **Optimized for 1 GB RAM** - Sequential job runner (`filelock`) and single-threaded `ffmpeg` processing keep resources bounded.
-- 📅 **Built-in Scheduler** - In-process scheduler (`APScheduler`) manages periodic syncs and daily `yt-dlp` updates.
-- 📻 **iTunes & Podlove Compatible** - Feeds support standard iTunes authoring, custom artwork, and Simple Chapters (`psc:chapters`).
+- 📅 **Built-in Scheduler** - In-process scheduler (`APScheduler`) manages periodic syncs and daily `yt-dlp` / `gallery-dl` updates.
+- 📻 **iTunes & Podlove Compatible** - Feeds support standard iTunes authoring, custom/uploaded artwork, and Simple Chapters (`psc:chapters`).
 - 🔒 **Secure Auth** - Password-only admin login backed by cryptographic session cookies.
 - 💻 **Premium Single Page App** - Modern, responsive dark UI built with pure CSS and vanilla JavaScript.
 - 📡 **Live Logs Console** - Real-time job output streaming using Server-Sent Events (SSE) with reconnect safety.
@@ -149,9 +149,10 @@ uvicorn podqueue.api.main:app --host 0.0.0.0 --port 8000
 - `GET /api/channels` - List all subscribed channels and check statuses.
 - `POST /api/channels` - Subscribe to a channel (converts `@username` URLs automatically).
 - `PUT /api/channels/{id}` - Modify limit, interval, or SponsorBlock setting.
+- `POST /api/channels/{id}/artwork` - Upload a custom image file to overwrite feed-level artwork.
 - `DELETE /api/channels/{id}` - Unsubscribe and delete all channel assets.
 - `POST /api/jobs/download` - Trigger manual download/RSS sync pipeline.
 - `POST /api/jobs/rss` - Regenerate RSS feeds XML manually.
-- `POST /api/jobs/update-ytdlp` - Update `yt-dlp` and restart process.
+- `POST /api/jobs/update-ytdlp` - Update `yt-dlp` & `gallery-dl` and restart process.
 - `GET /api/jobs/status` - Get execution state of background runner.
 - `GET /api/jobs/logs/stream` - SSE log viewer feed.
