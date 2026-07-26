@@ -1,5 +1,9 @@
 import datetime
 import re
+import subprocess
+import logging
+
+logger = logging.getLogger("podqueue")
 
 def rfc2822_format(dt: datetime.datetime) -> str:
     """Format datetime to RFC 2822 standard string (e.g. Wed, 02 Oct 2002 13:00:00 GMT)"""
@@ -179,4 +183,23 @@ def get_episode_sort_key(file_path: Path) -> tuple:
         return (mtime_str, mtime)
     except Exception:
         return ("00000000", mtime)
+
+def get_audio_duration(file_path: Path) -> int:
+    """Use ffprobe to query audio file duration in seconds"""
+    try:
+        cmd = [
+            "ffprobe",
+            "-v", "error",
+            "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            str(file_path)
+        ]
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if result.returncode == 0:
+            duration_str = result.stdout.strip()
+            if duration_str:
+                return int(float(duration_str))
+    except Exception as e:
+        logger.error(f"Error extracting duration using ffprobe for {file_path.name}: {e}")
+    return 0
 

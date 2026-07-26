@@ -200,6 +200,10 @@ def run_pawchive_download(channel: Channel, force: bool = False):
                 if temp_path.exists() and success:
                     temp_path.rename(dest_path)
                         
+                    # Extract actual duration using ffprobe
+                    from podqueue.utils.media import get_audio_duration
+                    duration = get_audio_duration(dest_path)
+
                     # Write info.json
                     info_path = download_dir / f"{post_id}.info.json"
                     raw_date = meta.get("date", "").split(" ")[0].replace("-", "")
@@ -211,7 +215,7 @@ def run_pawchive_download(channel: Channel, force: bool = False):
                         "title": meta.get("title") or f"Post {post_id}",
                         "upload_date": raw_date,
                         "description": strip_html_tags(meta.get("content", "")),
-                        "duration": 0,
+                        "duration": duration,
                         "channel": artist_name,
                         "thumbnails": [{"url": avatar_url, "width": 400, "height": 400}] if avatar_url else []
                     }
