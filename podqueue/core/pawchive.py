@@ -72,12 +72,19 @@ def run_pawchive_download(channel: Channel, force: bool = False):
     if not gallery_dl_path.exists():
         gallery_dl_path = python_bin_dir / "gallery-dl"
 
-    job_logger.info(f"Running gallery-dl metadata scan for {channel.url}...")
+    # Normalize the URL for gallery-dl's pawchive extractor
+    target_url = channel.url.strip().rstrip('/')
+    for suffix in ['/videos', '/posts', '/files', '/photos']:
+        if target_url.endswith(suffix):
+            target_url = target_url[:-len(suffix)]
+            break
+
+    job_logger.info(f"Running gallery-dl metadata scan for {target_url}...")
     cmd = [
         str(gallery_dl_path),
         "--dump-json",
         "--range", f"1-{max(10, channel.limit * 2)}",
-        channel.url
+        target_url
     ]
     
     # Apply proxy if configured
