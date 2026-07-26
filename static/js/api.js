@@ -72,6 +72,28 @@ export const API = {
         });
     },
     
+    async uploadArtwork(id, file) {
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        const response = await fetch(`/api/channels/${id}/artwork`, {
+            method: 'POST',
+            body: formData,
+        });
+        
+        if (response.status === 401) {
+            window.dispatchEvent(new CustomEvent('auth-unauthorized'));
+            throw new Error('Unauthorized');
+        }
+        
+        if (!response.ok) {
+            const errData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+            throw new Error(errData.detail || `Upload failed: ${response.status}`);
+        }
+        
+        return await response.json();
+    },
+    
     async getJobsStatus() {
         return await request('/api/jobs/status');
     },
