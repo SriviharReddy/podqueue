@@ -100,14 +100,19 @@ def run_pawchive_download(channel: Channel, force: bool = False):
         # Parse stdout JSON
         raw_data = json.loads(result.stdout)
         
-        # gallery-dl prints list of arrays where each item has format: [type_code, url/payload, metadata_dict]
+        # gallery-dl prints list of arrays where each item has format: [type_code, metadata_dict] or [type_code, url/payload, metadata_dict]
         posts_metadata = {}
         for item in raw_data:
+            meta = None
             if len(item) >= 3 and isinstance(item[2], dict):
-                  meta = item[2]
-                  post_id = meta.get("id")
-                  if post_id:
-                      posts_metadata[post_id] = meta
+                meta = item[2]
+            elif len(item) == 2 and isinstance(item[1], dict):
+                meta = item[1]
+                
+            if meta:
+                post_id = meta.get("id")
+                if post_id:
+                    posts_metadata[post_id] = meta
 
     except Exception as e:
         job_logger.error(f"Error executing gallery-dl: {e}")
