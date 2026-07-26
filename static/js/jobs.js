@@ -34,7 +34,7 @@ export function initJobs() {
     });
 
     updateYtdlpBtn.addEventListener('click', async () => {
-        if (confirm('This will update yt-dlp and restart the backend. Connection will drop momentarily. Proceed?')) {
+        if (confirm('This will update upstream tools (yt-dlp and gallery-dl) and restart the backend. Connection will drop momentarily. Proceed?')) {
             try {
                 await API.triggerUpdateYtdlp();
                 updateJobsStatus();
