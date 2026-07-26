@@ -193,7 +193,9 @@ def run_pawchive_download(channel: Channel, force: bool = False):
                         if attempt >= max_retries:
                             raise e
                         else:
-                            time.sleep(2)
+                            sleep_time = min(30, 2 ** attempt)
+                            job_logger.info(f"Sleeping {sleep_time} seconds before retry...")
+                            time.sleep(sleep_time)
                             
                 if temp_path.exists() and success:
                     temp_path.rename(dest_path)
