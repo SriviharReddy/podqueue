@@ -2,7 +2,7 @@ import shutil
 import asyncio
 import logging
 from typing import List, Union
-from fastapi import APIRouter, Request, HTTPException, status
+from fastapi import APIRouter, Request, HTTPException, status, UploadFile, File
 from pydantic import BaseModel, Field
 from podqueue.config import settings
 from podqueue.core.channels import Channel, load_channels, add_channel, update_channel, delete_channel
@@ -131,3 +131,37 @@ async def remove_channel_api(request: Request, channel_id: str):
         artwork_file.unlink(missing_ok=True)
         
     return {"status": "ok", "message": f"Channel '{channel_id}' and all associated files deleted."}
+
+@router.post("/channels/{channel_id}/artwork")
+async def upload_channel_artwork(request: Request, channel_id: str, file: UploadFile = File(...)):
+    require_auth(request)
+    
+    # Verify the channel exists first
+    channels = await load_channels()
+    if not any(c.id == channel_id for c in channels):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Channel not found"
+        )
+        
+    # Validate content type/extension
+    if not file.content_type.startswith("image/"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File must be an image"
+        )
+         
+    # Save the artwork to the artwork directory as channel_id.jpg
+    artwork_file = settings.ARTWORK_DIR / f"{channel_id}.jpg"
+    
+    try:
+        with open(artwork_file, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+    except Exception as e:
+        logger.error(f"Error saving uploaded artwork for {channel_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to save image file."
+        )
+        
+    return {"status": "ok", "message": f"Artwork updated for channel '{channel_id}'."}

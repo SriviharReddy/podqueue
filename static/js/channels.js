@@ -46,6 +46,37 @@ export function initChannels() {
             alert(`Error updating channel: ${err.message}`);
         }
     });
+
+    const uploadArtworkBtn = document.getElementById('upload-artwork-btn');
+    const artworkInput = document.getElementById('edit-chan-artwork-input');
+    const artworkStatus = document.getElementById('artwork-upload-status');
+    const artworkPreview = document.getElementById('edit-artwork-preview');
+    
+    uploadArtworkBtn.addEventListener('click', async () => {
+        const id = document.getElementById('edit-chan-id').value;
+        const file = artworkInput.files[0];
+        if (!file) {
+            artworkStatus.textContent = 'Please select an image file first.';
+            artworkStatus.style.color = 'var(--danger-color)';
+            artworkStatus.style.display = 'block';
+            return;
+        }
+        
+        artworkStatus.textContent = 'Uploading...';
+        artworkStatus.style.color = 'var(--text-secondary)';
+        artworkStatus.style.display = 'block';
+        
+        try {
+            await API.uploadArtwork(id, file);
+            artworkStatus.textContent = 'Artwork uploaded successfully!';
+            artworkStatus.style.color = 'var(--success-color)';
+            artworkPreview.src = `/artwork/${id}.jpg?t=${Date.now()}`;
+            loadChannelsList();
+        } catch (err) {
+            artworkStatus.textContent = `Upload failed: ${err.message}`;
+            artworkStatus.style.color = 'var(--danger-color)';
+        }
+    });
 }
 
 export async function loadChannelsList() {
@@ -109,6 +140,20 @@ export async function loadChannelsList() {
                 document.getElementById('edit-chan-interval').value = btn.dataset.interval;
                 
                 document.getElementById('edit-modal-title').textContent = `Edit Feed: ${id}`;
+                
+                // Reset file upload field and status
+                document.getElementById('edit-chan-artwork-input').value = '';
+                const artworkStatus = document.getElementById('artwork-upload-status');
+                artworkStatus.style.display = 'none';
+                artworkStatus.textContent = '';
+                
+                // Load current artwork preview
+                const previewImg = document.getElementById('edit-artwork-preview');
+                previewImg.onerror = () => {
+                    previewImg.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 60 60"><rect width="60" height="60" fill="%232e2e2e"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-size="24" fill="%23888">📻</text></svg>';
+                };
+                previewImg.src = `/artwork/${id}.jpg?t=${Date.now()}`;
+                
                 editChannelModal.classList.add('active');
             });
         });
