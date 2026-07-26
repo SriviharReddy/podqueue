@@ -94,10 +94,11 @@ def resolve_channel_url(url: str, cookies_file: Path = None) -> str:
             except Exception as e:
                 logger.error(f"Error resolving channel URL {url}: {e}")
                 
-    # If the URL points to a channel, ensure it targets the videos tab to extract individual uploads
-    if ("/channel/" in resolved or "/c/" in resolved or "/user/" in resolved) and not any(x in resolved for x in ["/videos", "/shorts", "/streams", "/playlists", "watch?v=", "playlist?"]):
-        resolved = resolved.rstrip("/") + "/videos"
-        logger.info(f"Appended /videos to channel URL: {resolved}")
+    # If the URL points to a channel, ensure it targets the videos tab to extract individual uploads (YouTube only)
+    if "youtube.com" in resolved or "youtu.be" in resolved:
+        if ("/channel/" in resolved or "/c/" in resolved or "/user/" in resolved) and not any(x in resolved for x in ["/videos", "/shorts", "/streams", "/playlists", "watch?v=", "playlist?"]):
+            resolved = resolved.rstrip("/") + "/videos"
+            logger.info(f"Appended /videos to channel URL: {resolved}")
         
     return resolved
 
