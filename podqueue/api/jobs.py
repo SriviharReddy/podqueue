@@ -42,6 +42,7 @@ async def get_jobs_status(request: Request):
     return {
         "running": state.running,
         "current_job": state.current_job,
+        "last_job": state.last_job,
         "last_run": state.last_run,
         "last_exit_code": state.last_exit_code
     }

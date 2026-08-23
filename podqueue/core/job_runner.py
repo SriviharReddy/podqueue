@@ -5,6 +5,7 @@ import subprocess
 import logging
 import datetime
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from filelock import FileLock, Timeout
 from podqueue.config import settings
@@ -18,11 +19,16 @@ class JobState:
     def __init__(self):
         self.running = False
         self.current_job = None
+        self.last_job = None
         self.last_run = None
         self.last_exit_code = 0
 
 state = JobState()
 state_lock = asyncio.Lock()
+job_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="podqueue_job")
+
+def shutdown_job_runner():
+    job_executor.shutdown(wait=False)
 
 def get_file_lock():
     return FileLock(settings.LOCK_FILE, timeout=1)
@@ -83,12 +89,13 @@ async def run_job_safely(job_name: str, sync_func, *args, **kwargs) -> bool:
                     pass
 
     try:
-        await asyncio.to_thread(_execute)
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(job_executor, _execute)
     finally:
         async with state_lock:
             state.running = False
+            state.last_job = state.current_job or job_name
             state.current_job = None
             state.last_run = datetime.datetime.now(datetime.timezone.utc).isoformat()
             state.last_exit_code = exit_code
-
     return exit_code == 0

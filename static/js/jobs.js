@@ -119,7 +119,7 @@ export async function updateJobsStatus() {
             lastJobCode.textContent = 'Running';
             lastJobCode.style.color = 'var(--accent-color)';
         } else {
-            lastJobName.textContent = status.current_job || 'None';
+            lastJobName.textContent = status.last_job || status.current_job || 'None';
             lastJobCode.textContent = status.last_exit_code === 0 ? 'Success' : `Failed (${status.last_exit_code})`;
             lastJobCode.style.color = status.last_exit_code === 0 ? 'var(--success-color)' : 'var(--danger-color)';
         }

@@ -12,16 +12,13 @@ from podqueue.api.auth import router as auth_router, require_auth
 from podqueue.api.channels import router as channels_router
 from podqueue.api.jobs import router as jobs_router
 from podqueue.core.scheduler import init_scheduler, shutdown_scheduler
-
+from podqueue.core.job_runner import shutdown_job_runner
 logger = logging.getLogger("podqueue")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup actions
     loop = asyncio.get_running_loop()
-    # Configure default executor to 1 thread for yt-dlp/ffmpeg standard bounds
-    executor = ThreadPoolExecutor(max_workers=1)
-    loop.set_default_executor(executor)
     
     # Initialize background scheduler
     init_scheduler(loop)
@@ -30,8 +27,7 @@ async def lifespan(app: FastAPI):
     
     # Shutdown actions
     shutdown_scheduler()
-    executor.shutdown(wait=True)
-
+    shutdown_job_runner()
 app = FastAPI(
     title="PodQueue API",
     docs_url=None,
