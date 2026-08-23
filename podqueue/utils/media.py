@@ -1,4 +1,5 @@
 import datetime
+import email.utils
 import re
 import subprocess
 import logging
@@ -6,9 +7,12 @@ import logging
 logger = logging.getLogger("podqueue")
 
 def rfc2822_format(dt: datetime.datetime) -> str:
-    """Format datetime to RFC 2822 standard string (e.g. Wed, 02 Oct 2002 13:00:00 GMT)"""
-    # Ensure dt is aware or has a default format
-    return dt.strftime("%a, %d %b %Y %H:%M:%S GMT")
+    """Format datetime to RFC 2822 standard string (e.g. Wed, 02 Oct 2002 13:00:00 +0000)."""
+    if not dt:
+        dt = datetime.datetime.now(datetime.timezone.utc)
+    elif dt.tzinfo is None:
+        dt = dt.replace(tzinfo=datetime.timezone.utc)
+    return email.utils.format_datetime(dt)
 
 def format_duration(seconds: float) -> str:
     """Convert seconds to HH:MM:SS format for iTunes duration"""

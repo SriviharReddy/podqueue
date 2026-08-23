@@ -125,13 +125,21 @@ def generate_rss(feed_name: str, podcast_dir: Path):
                 episode_title = episode_info.get("title", video_id)
                 sanitized = sanitize_title(episode_title)
                 ET.SubElement(item, "title").text = sanitized
+                # Determine exact publication datetime: timestamp/release_timestamp -> upload_date -> file mtime
+                ts = episode_info.get("timestamp") or episode_info.get("release_timestamp")
+                pub_date = None
+                if ts and (isinstance(ts, (int, float)) or (isinstance(ts, str) and ts.isdigit())):
+                    try:
+                        pub_date = datetime.datetime.fromtimestamp(float(ts), datetime.timezone.utc)
+                    except Exception:
+                        pub_date = None
                 
-                upload_date_str = episode_info.get("upload_date")
-                pub_date = parse_upload_date(upload_date_str) if upload_date_str else None
+                if not pub_date:
+                    upload_date_str = episode_info.get("upload_date")
+                    pub_date = parse_upload_date(upload_date_str) if upload_date_str else None
                 
                 if not pub_date:
                     pub_date = datetime.datetime.fromtimestamp(os.path.getmtime(file_path), datetime.timezone.utc)
-                
                 ET.SubElement(item, "pubDate").text = rfc2822_format(pub_date)
                 ET.SubElement(item, "guid", isPermaLink="false").text = f"podqueue:{feed_name}:{video_id}"
                 ET.SubElement(item, "enclosure", url=file_url, length=str(file_size), type=mime_type)
