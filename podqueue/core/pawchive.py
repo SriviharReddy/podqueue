@@ -6,6 +6,7 @@ import logging
 import time
 import re
 import html
+import shutil
 import requests
 from pathlib import Path
 from podqueue.config import settings
@@ -66,12 +67,17 @@ def run_pawchive_download(channel: Channel, force: bool = False):
         except Exception as e:
             job_logger.error(f"Error reading archive file: {e}")
 
-    # Resolve gallery-dl path dynamically from running interpreter environment
-    python_bin_dir = Path(sys.executable).parent
-    gallery_dl_path = python_bin_dir / "gallery-dl.exe"
-    if not gallery_dl_path.exists():
-        gallery_dl_path = python_bin_dir / "gallery-dl"
-
+    # Resolve gallery-dl path dynamically
+    gallery_dl_path = shutil.which("gallery-dl")
+    if not gallery_dl_path:
+        python_bin_dir = Path(sys.executable).parent
+        for candidate in ["gallery-dl.exe", "gallery-dl"]:
+            p = python_bin_dir / candidate
+            if p.exists():
+                gallery_dl_path = str(p)
+                break
+    if not gallery_dl_path:
+        gallery_dl_path = "gallery-dl"
     # Normalize the URL for gallery-dl's pawchive extractor
     target_url = channel.url.strip().rstrip('/')
     for suffix in ['/videos', '/posts', '/files', '/photos']:
@@ -97,23 +103,32 @@ def run_pawchive_download(channel: Channel, force: bool = False):
             job_logger.error(f"gallery-dl failed with code {result.returncode}: {result.stderr}")
             return
         
-        # Parse stdout JSON
-        raw_data = json.loads(result.stdout)
+        # Parse stdout JSON Lines (one JSON object per line)
+        raw_data = []
+        for line in result.stdout.splitlines():
+            line = line.strip()
+            if line:
+                try:
+                    raw_data.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
         
         # gallery-dl prints list of arrays where each item has format: [type_code, metadata_dict] or [type_code, url/payload, metadata_dict]
         posts_metadata = {}
         for item in raw_data:
             meta = None
-            if len(item) >= 3 and isinstance(item[2], dict):
-                meta = item[2]
-            elif len(item) == 2 and isinstance(item[1], dict):
-                meta = item[1]
+            if isinstance(item, list):
+                if len(item) >= 3 and isinstance(item[2], dict):
+                    meta = item[2]
+                elif len(item) == 2 and isinstance(item[1], dict):
+                    meta = item[1]
+            elif isinstance(item, dict):
+                meta = item
                 
             if meta:
                 post_id = meta.get("id")
                 if post_id:
                     posts_metadata[post_id] = meta
-
     except Exception as e:
         job_logger.error(f"Error executing gallery-dl: {e}")
         return
@@ -123,15 +138,23 @@ def run_pawchive_download(channel: Channel, force: bool = False):
     for post_id, meta in sorted(posts_metadata.items(), key=lambda x: x[1].get("date", ""), reverse=True):
         if post_id not in archive_set:
             attachments = meta.get("attachments", [])
-            mp3_url = None
-            mp3_name = None
+            audio_url = None
+            audio_name = None
+            audio_ext = "mp3"
+            allowed_exts = {"mp3", "m4a", "wav", "flac", "ogg", "opus"}
             for att in attachments:
-                if att.get("extension") == "mp3" or att.get("url", "").split("?")[0].endswith(".mp3"):
-                    mp3_url = att.get("url")
-                    mp3_name = att.get("name") or f"{post_id}.mp3"
+                ext = att.get("extension", "").lower()
+                url_clean = att.get("url", "").split("?")[0].lower()
+                for candidate_ext in allowed_exts:
+                    if ext == candidate_ext or url_clean.endswith(f".{candidate_ext}"):
+                        audio_url = att.get("url")
+                        audio_ext = candidate_ext
+                        audio_name = att.get("name") or f"{post_id}.{audio_ext}"
+                        break
+                if audio_url:
                     break
-            if mp3_url:
-                new_posts.append((post_id, mp3_url, mp3_name, meta))
+            if audio_url:
+                new_posts.append((post_id, audio_url, audio_name, audio_ext, meta))
 
     if new_posts:
         posts_to_download = new_posts[:channel.limit]
@@ -145,12 +168,11 @@ def run_pawchive_download(channel: Channel, force: bool = False):
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
 
-        for post_id, mp3_url, mp3_name, meta in posts_to_download:
-            dest_path = download_dir / f"{post_id}.mp3"
-            temp_path = download_dir / f"{post_id}.temp.mp3"
-            
+        for post_id, audio_url, audio_name, audio_ext, meta in posts_to_download:
+            dest_path = download_dir / f"{post_id}.{audio_ext}"
+            temp_path = download_dir / f"{post_id}.temp.{audio_ext}"
             try:
-                job_logger.info(f"Downloading Pawchive file: {mp3_name} ({mp3_url})")
+                job_logger.info(f"Downloading Pawchive file: {audio_name} ({audio_url})")
                 
                 max_retries = 5
                 attempt = 0
@@ -170,18 +192,22 @@ def run_pawchive_download(channel: Channel, force: bool = False):
                         job_logger.info(f"Starting fresh download (attempt {attempt}/{max_retries})...")
                         
                     try:
-                        response = requests.get(mp3_url, headers=headers_copy, proxies=proxies, stream=True, timeout=30)
+                        response = requests.get(audio_url, headers=headers_copy, proxies=proxies, stream=True, timeout=30)
                         
                         if downloaded_bytes > 0:
-                            if response.status_code not in (206, 200):
-                                job_logger.warning(f"Server rejected Range request (code {response.status_code}). Restarting download...")
+                            if response.status_code == 200:
+                                job_logger.warning(f"Server returned 200 OK for Range request. Restarting download from byte 0...")
                                 temp_path.unlink(missing_ok=True)
                                 downloaded_bytes = 0
-                                response = requests.get(mp3_url, headers=headers, proxies=proxies, stream=True, timeout=30)
+                            elif response.status_code != 206:
+                                job_logger.warning(f"Server rejected Range request with code {response.status_code}. Restarting download...")
+                                temp_path.unlink(missing_ok=True)
+                                downloaded_bytes = 0
+                                response = requests.get(audio_url, headers=headers, proxies=proxies, stream=True, timeout=30)
                         
                         response.raise_for_status()
                         
-                        mode = "ab" if downloaded_bytes > 0 else "wb"
+                        mode = "ab" if (downloaded_bytes > 0 and response.status_code == 206) else "wb"
                         with open(temp_path, mode) as f:
                             for chunk in response.iter_content(chunk_size=16384):
                                 if chunk:
