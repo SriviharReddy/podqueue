@@ -50,7 +50,9 @@ def generate_rss(feed_name: str, podcast_dir: Path):
     channel_title = feed_name
     channel_desc = f"A podcast stream of audio from the Youtube Channel"
     local_image_url = None
-    
+    local_artwork_path = settings.ARTWORK_DIR / f"{feed_name}.jpg"
+    if local_artwork_path.exists():
+        local_image_url = f"{settings.BASE_URL}/artwork/{feed_name}.jpg"
     # Look for channel info JSON files
     all_info_files = list(podcast_dir.glob("*.info.json"))
     if all_info_files:
@@ -65,11 +67,12 @@ def generate_rss(feed_name: str, podcast_dir: Path):
                 channel_title = data.get("channel", feed_name)
                 channel_desc = f"A podcast stream of audio from the Youtube Channel {channel_title}"
                 
-                image_to_download = get_best_thumbnail(data.get("thumbnails", []))
-                if image_to_download:
-                    local_image_url = cache_artwork(feed_name, image_to_download)
-                else:
-                    job_logger.info(f"No thumbnail found for {feed_name}")
+                if not local_image_url:
+                    image_to_download = get_best_thumbnail(data.get("thumbnails", []))
+                    if image_to_download:
+                        local_image_url = cache_artwork(feed_name, image_to_download)
+                    else:
+                        job_logger.info(f"No thumbnail found for {feed_name}")
         except Exception as e:
             job_logger.error(f"Error reading channel info JSON for {feed_name}: {e}")
     else:
@@ -130,7 +133,7 @@ def generate_rss(feed_name: str, podcast_dir: Path):
                     pub_date = datetime.datetime.fromtimestamp(os.path.getmtime(file_path), datetime.timezone.utc)
                 
                 ET.SubElement(item, "pubDate").text = rfc2822_format(pub_date)
-                ET.SubElement(item, "guid", isPermaLink="false").text = file_url
+                ET.SubElement(item, "guid", isPermaLink="false").text = f"podqueue:{feed_name}:{video_id}"
                 ET.SubElement(item, "enclosure", url=file_url, length=str(file_size), type=mime_type)
                 
                 description = episode_info.get("description", "")
@@ -157,12 +160,12 @@ def generate_rss(feed_name: str, podcast_dir: Path):
                 job_logger.error(f"Error reading episode info for {video_id}: {e}")
                 pub_date = datetime.datetime.fromtimestamp(os.path.getmtime(file_path), datetime.timezone.utc)
                 ET.SubElement(item, "pubDate").text = rfc2822_format(pub_date)
-                ET.SubElement(item, "guid", isPermaLink="false").text = file_url
+                ET.SubElement(item, "guid", isPermaLink="false").text = f"podqueue:{feed_name}:{video_id}"
                 ET.SubElement(item, "enclosure", url=file_url, length=str(file_size), type=mime_type)
         else:
             pub_date = datetime.datetime.fromtimestamp(os.path.getmtime(file_path), datetime.timezone.utc)
             ET.SubElement(item, "pubDate").text = rfc2822_format(pub_date)
-            ET.SubElement(item, "guid", isPermaLink="false").text = file_url
+            ET.SubElement(item, "guid", isPermaLink="false").text = f"podqueue:{feed_name}:{video_id}"
             ET.SubElement(item, "enclosure", url=file_url, length=str(file_size), type=mime_type)
             
     tree = ET.ElementTree(rss)
