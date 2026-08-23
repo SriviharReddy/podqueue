@@ -51,7 +51,7 @@ def run_pawchive_download(channel: Channel, force: bool = False):
     download_dir = settings.DOWNLOADS_DIR / channel.id
     download_dir.mkdir(parents=True, exist_ok=True)
     archive_file = download_dir / "archive.txt"
-
+    cleanup_leftovers(download_dir)
     cleanup_old_episodes(download_dir, archive_file, channel.limit)
 
     # Build archive set
@@ -259,8 +259,8 @@ def run_pawchive_download(channel: Channel, force: bool = False):
                 if temp_path.exists():
                     temp_path.unlink()
 
-    cleanup_old_episodes(download_dir, archive_file, channel.limit)
     cleanup_leftovers(download_dir)
+    cleanup_old_episodes(download_dir, archive_file, channel.limit)
 
     # Save check status
     try:

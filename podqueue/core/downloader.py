@@ -105,7 +105,10 @@ def resolve_channel_url(url: str, cookies_file: Path = None) -> str:
 def cleanup_old_episodes(download_dir: Path, archive_file: Path, limit: int):
     """Delete old episodes exceeding the limit, sorting by YouTube upload date (newest first)"""
     audio_files = sorted(
-        list(download_dir.glob("*.m4a")) + list(download_dir.glob("*.mp3")),
+        [
+            f for f in (list(download_dir.glob("*.m4a")) + list(download_dir.glob("*.mp3")))
+            if f.is_file() and not f.name.endswith(".info.json") and ".temp." not in f.name and ".part" not in f.name
+        ],
         key=get_episode_sort_key,
         reverse=True
     )
@@ -188,7 +191,8 @@ def run_download_job(force: bool = False):
         download_dir.mkdir(parents=True, exist_ok=True)
         archive_file = download_dir / "archive.txt"
         
-        # Clean up BEFORE download
+        # Clean up leftover temp files then prune old episodes BEFORE download
+        cleanup_leftovers(download_dir)
         cleanup_old_episodes(download_dir, archive_file, channel.limit)
         
         # Build list of already downloaded video IDs
