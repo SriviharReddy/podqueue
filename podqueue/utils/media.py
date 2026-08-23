@@ -34,22 +34,13 @@ def parse_upload_date(upload_date_str: str) -> datetime.datetime:
         return None
 
 def sanitize_title(title: str) -> str:
-    """Sanitize episode title for podcast compatibility"""
+    """Sanitize episode title for podcast compatibility by removing unprintable characters and normalizing whitespace."""
     if not title:
         return ""
-    # Replace colons with dashes
-    title = title.replace(":", " -")
-    # Replace other problematic characters if needed
-    title = title.replace("|", "-")
-    title = title.replace("/", "-")
-    # Replace backslashes using re.sub
-    title = re.sub(r'\\', '-', title) # Use raw string for regex pattern
-    title = title.replace("?", "")
-    title = title.replace("*", "")
-    # Remove extra spaces that might result from replacements
+    # Strip non-printable control characters while preserving full Unicode and standard punctuation (:, ?, !, -, etc.)
+    title = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', title)
     title = re.sub(r'\s+', ' ', title).strip()
     return title
-
 def get_best_thumbnail(thumbnails):
     """Get the highest resolution square thumbnail from thumbnails with fallback to any image"""
     if not thumbnails:
@@ -115,13 +106,13 @@ def get_best_episode_thumbnail(thumbnails):
     # Return the URL of the best thumbnail, or None if none found
     return best_thumb["url"] if best_thumb and best_thumb.get("url") else None
 
-def parse_chapters_from_description(description):
-    """Parse chapter timestamps from video description"""
+def parse_chapters_from_description(description: str) -> list:
+    """Parse chapter timestamps from video description, supporting bracketed and standard timestamps."""
     if not description:
         return []
     
-    # Pattern to match timestamps like: 00:00, 0:00, 00:00:00, 0:00:00
-    timestamp_pattern = r'^(\d{1,2}):(\d{2})(?::(\d{2}))?\s+(.+)$'
+    # Pattern to match timestamps like: 00:00, 0:00, 00:00:00, 0:00:00, [01:23], (01:23)
+    timestamp_pattern = r'^[\[\(]?(\d{1,2}):(\d{2})(?::(\d{2}))?[\]\)]?\s+(.+)$'
     chapters = []
     
     for line in description.split('\n'):
@@ -131,8 +122,6 @@ def parse_chapters_from_description(description):
             hours, minutes, seconds, title = match.groups()
             
             # Convert to total seconds
-            total_seconds = 0
-            
             if seconds:  # Three segments: hours:minutes:seconds
                 total_seconds = int(hours) * 3600 + int(minutes) * 60 + int(seconds)
             else:  # Two segments: minutes:seconds
@@ -153,6 +142,30 @@ def parse_chapters_from_description(description):
     
     return chapters
 
+def extract_chapters(episode_info: dict) -> list:
+    """Extract chapters from info.json native chapters list, falling back to description parsing."""
+    if not episode_info:
+        return []
+    
+    # 1. Native yt-dlp chapters from metadata
+    native_chapters = episode_info.get("chapters")
+    if isinstance(native_chapters, list) and len(native_chapters) > 0:
+        parsed = []
+        for ch in native_chapters:
+            if isinstance(ch, dict) and "start_time" in ch:
+                start_sec = float(ch.get("start_time", 0))
+                title = ch.get("title", "").strip()
+                time_str = f"{int(start_sec // 3600):02d}:{int((start_sec % 3600) // 60):02d}:{int(start_sec % 60):02d}"
+                parsed.append({
+                    "time": time_str,
+                    "title": title or "Chapter"
+                })
+        if parsed:
+            return parsed
+            
+    # 2. Fallback to description parsing
+    description = episode_info.get("description", "")
+    return parse_chapters_from_description(description)
 import json
 from pathlib import Path
 

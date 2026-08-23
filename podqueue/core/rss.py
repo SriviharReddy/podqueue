@@ -14,7 +14,7 @@ from podqueue.utils.media import (
     sanitize_title,
     get_best_thumbnail,
     get_best_episode_thumbnail,
-    parse_chapters_from_description,
+    extract_chapters,
     get_episode_sort_key
 )
 
@@ -150,7 +150,7 @@ def generate_rss(feed_name: str, podcast_dir: Path):
                     if ep_thumb:
                         ET.SubElement(item, "itunes:image", href=ep_thumb)
                         
-                chapters = parse_chapters_from_description(description)
+                chapters = extract_chapters(episode_info)
                 if chapters:
                     chapters_element = ET.SubElement(item, "psc:chapters", attrib={"version": "1.2"})
                     for ch in chapters:
