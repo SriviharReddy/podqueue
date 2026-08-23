@@ -96,7 +96,7 @@ def resolve_channel_url(url: str, cookies_file: Path = None) -> str:
                 
     # If the URL points to a channel, ensure it targets the videos tab to extract individual uploads (YouTube only)
     if "youtube.com" in resolved or "youtu.be" in resolved:
-        if ("/channel/" in resolved or "/c/" in resolved or "/user/" in resolved) and not any(x in resolved for x in ["/videos", "/shorts", "/streams", "/playlists", "watch?v=", "playlist?"]):
+        if ("/channel/" in resolved or "/c/" in resolved or "/user/" in resolved or "/@" in resolved) and not any(x in resolved for x in ["/videos", "/shorts", "/streams", "/playlists", "watch?v=", "playlist?"]):
             resolved = resolved.rstrip("/") + "/videos"
             logger.info(f"Appended /videos to channel URL: {resolved}")
         
@@ -228,9 +228,10 @@ def run_download_job(force: bool = False):
                 resolved_url = resolve_channel_url(channel.url, settings.COOKIES_FILE)
                 info = ydl.extract_info(resolved_url, download=False)
                 
-                if 'entries' in info:
+                if info:
+                    entries = info.get('entries') if 'entries' in info else [info]
                     valid_count = 0
-                    for entry in info['entries']:
+                    for entry in entries:
                         if not entry:
                             continue
                         # Layer 2 defense: Skip entries that are actually other playlists/tabs rather than videos
