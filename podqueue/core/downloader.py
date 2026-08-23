@@ -7,7 +7,7 @@ import yt_dlp
 from pathlib import Path
 from typing import List
 from podqueue.config import settings
-from podqueue.core.channels import Channel, load_channels
+from podqueue.core.channels import Channel, load_channels_sync
 from podqueue.utils.media import get_episode_sort_key
 from podqueue.core.pawchive import is_pawchive_url, run_pawchive_download
 
@@ -151,20 +151,7 @@ def run_download_job(force: bool = False):
     """Run yt-dlp downloads for all configured channels"""
     job_logger.info("Starting YouTube podcast sync...")
     
-    channels = []
-    # Run load_channels synchronously by creating a loop or since we are in to_thread, we run it inside the async event loop of the app.
-    # Wait, load_channels is an async function. Since run_download_job is running in a thread pool (asyncio.to_thread),
-    # we can run load_channels synchronously by using asyncio.run() or if a loop is already running in this thread, we fetch it.
-    # Actually, let's create a helper to load channels synchronously, or run it via asyncio.run().
-    import asyncio
-    try:
-        channels = asyncio.run(load_channels())
-    except RuntimeError:
-        # If loop is already running in this thread (unlikely for to_thread), use next method
-        loop = asyncio.new_event_loop()
-        channels = loop.run_until_complete(load_channels())
-        loop.close()
-
+    channels = load_channels_sync()
     if not channels:
         job_logger.info("No channels configured. Sync complete.")
         return

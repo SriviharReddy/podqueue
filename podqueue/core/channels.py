@@ -1,8 +1,9 @@
+import os
 import json
 import logging
+import threading
 from typing import List, Union
 from pydantic import BaseModel, Field
-import asyncio
 from podqueue.config import settings
 
 logger = logging.getLogger("podqueue")
@@ -14,8 +15,8 @@ class Channel(BaseModel):
     sponsorblock: Union[bool, str] = False
     check_interval_hours: int = Field(default=1, ge=1)
 
-# In-process asyncio Lock for serializing CRUD
-_channels_lock = asyncio.Lock()
+# Thread-safe lock for serializing file reads/writes across threads and event loops
+_channels_lock = threading.RLock()
 
 def _load_channels_raw() -> list:
     if not settings.CHANNELS_FILE.exists():
@@ -29,15 +30,19 @@ def _load_channels_raw() -> list:
 
 def _save_channels_raw(channels_data: list):
     try:
-        settings.CHANNELS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        with open(settings.CHANNELS_FILE, "w", encoding="utf-8") as f:
+        target = settings.CHANNELS_FILE
+        target.parent.mkdir(parents=True, exist_ok=True)
+        temp_file = target.with_suffix(f".tmp.{os.getpid()}")
+        with open(temp_file, "w", encoding="utf-8") as f:
             json.dump(channels_data, f, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        temp_file.replace(target)
     except Exception as e:
         logger.error(f"Error saving channels.json: {e}")
         raise
-
-async def load_channels() -> List[Channel]:
-    async with _channels_lock:
+def load_channels_sync() -> List[Channel]:
+    with _channels_lock:
         raw = _load_channels_raw()
         channels = []
         for item in raw:
@@ -47,25 +52,23 @@ async def load_channels() -> List[Channel]:
                 logger.error(f"Error parsing channel record {item}: {e}")
         return channels
 
-async def save_channels(channels: List[Channel]):
-    async with _channels_lock:
+def save_channels_sync(channels: List[Channel]):
+    with _channels_lock:
         data = [c.model_dump() if hasattr(c, "model_dump") else c.dict() for c in channels]
         _save_channels_raw(data)
 
-async def add_channel(channel: Channel) -> bool:
-    async with _channels_lock:
+def add_channel_sync(channel: Channel) -> bool:
+    with _channels_lock:
         raw = _load_channels_raw()
-        # Check if already exists
         for item in raw:
             if item.get("id") == channel.id:
                 return False
-        
         raw.append(channel.model_dump() if hasattr(channel, "model_dump") else channel.dict())
         _save_channels_raw(raw)
         return True
 
-async def update_channel(channel_id: str, limit: int, sponsorblock: Union[bool, str], check_interval_hours: int) -> bool:
-    async with _channels_lock:
+def update_channel_sync(channel_id: str, limit: int, sponsorblock: Union[bool, str], check_interval_hours: int) -> bool:
+    with _channels_lock:
         raw = _load_channels_raw()
         updated = False
         for item in raw:
@@ -79,8 +82,8 @@ async def update_channel(channel_id: str, limit: int, sponsorblock: Union[bool, 
             _save_channels_raw(raw)
         return updated
 
-async def delete_channel(channel_id: str) -> bool:
-    async with _channels_lock:
+def delete_channel_sync(channel_id: str) -> bool:
+    with _channels_lock:
         raw = _load_channels_raw()
         initial_len = len(raw)
         raw = [item for item in raw if item.get("id") != channel_id]
@@ -88,3 +91,18 @@ async def delete_channel(channel_id: str) -> bool:
             _save_channels_raw(raw)
             return True
         return False
+
+async def load_channels() -> List[Channel]:
+    return load_channels_sync()
+
+async def save_channels(channels: List[Channel]):
+    save_channels_sync(channels)
+
+async def add_channel(channel: Channel) -> bool:
+    return add_channel_sync(channel)
+
+async def update_channel(channel_id: str, limit: int, sponsorblock: Union[bool, str], check_interval_hours: int) -> bool:
+    return update_channel_sync(channel_id, limit, sponsorblock, check_interval_hours)
+
+async def delete_channel(channel_id: str) -> bool:
+    return delete_channel_sync(channel_id)
