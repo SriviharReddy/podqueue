@@ -1,7 +1,7 @@
 import logging
+import mimetypes
 import xml.etree.ElementTree as ET
 from contextlib import asynccontextmanager
-from concurrent.futures import ThreadPoolExecutor
 import asyncio
 from fastapi import FastAPI, Request, HTTPException, status
 from fastapi.staticfiles import StaticFiles
@@ -14,6 +14,11 @@ from podqueue.api.jobs import router as jobs_router
 from podqueue.core.scheduler import init_scheduler, shutdown_scheduler
 from podqueue.core.job_runner import shutdown_job_runner
 logger = logging.getLogger("podqueue")
+
+# Ensure standard podcast media MIME types are registered across all OS environments
+mimetypes.add_type("audio/mp4", ".m4a")
+mimetypes.add_type("audio/mpeg", ".mp3")
+mimetypes.add_type("application/xml", ".xml")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -64,7 +69,10 @@ async def list_feeds(request: Request):
                 title = channel.find("title").text if channel is not None and channel.find("title") is not None else file_path.stem
                 
                 downloads_subdir = settings.DOWNLOADS_DIR / file_path.stem
-                audio_count = len(list(downloads_subdir.glob("*.m4a")) + list(downloads_subdir.glob("*.mp3"))) if downloads_subdir.exists() else 0
+                audio_count = len([
+                    f for f in (list(downloads_subdir.glob("*.m4a")) + list(downloads_subdir.glob("*.mp3")))
+                    if f.is_file() and not f.name.endswith(".info.json") and ".temp." not in f.name and ".part" not in f.name
+                ]) if downloads_subdir.exists() else 0
                 
                 feeds.append({
                     "name": file_path.stem,
