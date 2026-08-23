@@ -38,8 +38,15 @@ def sync_pipeline(force: bool = False):
     run_download_job(force=force)
     run_rss_job()
 
+def is_supervised() -> bool:
+    """Detect if running under a supervisor (e.g. systemd) or configured for auto-restart."""
+    if "INVOCATION_ID" in os.environ or "JOURNAL_STREAM" in os.environ:
+        return True
+    auto_restart = os.getenv("AUTO_RESTART_ON_UPDATE", "").strip().lower()
+    return auto_restart in ("1", "true", "yes", "on")
+
 def update_ytdlp():
-    """Runs pip update on yt-dlp, yt-dlp-ejs, and gallery-dl, and exits process to let systemd restart it"""
+    """Runs pip update on yt-dlp, yt-dlp-ejs, and gallery-dl, restarting only if supervised."""
     job_logger.info("Updating yt-dlp, yt-dlp-ejs, and gallery-dl using pip...")
     cmd = [sys.executable, "-m", "pip", "install", "-U", "yt-dlp", "yt-dlp-ejs", "gallery-dl"]
     
@@ -49,11 +56,12 @@ def update_ytdlp():
     if result.returncode != 0:
         raise RuntimeError(f"pip install failed with exit code {result.returncode}")
         
-    job_logger.info("Upstream tools updated successfully. Process exiting now to trigger systemd auto-restart.")
-    # Flush logs and exit
-    time.sleep(1)
-    os._exit(0)
-
+    if is_supervised():
+        job_logger.info("Supervisor detected (e.g. systemd). Process exiting now to trigger auto-restart.")
+        time.sleep(1)
+        os._exit(0)
+    else:
+        job_logger.info("Upstream tools updated successfully. No supervisor detected; please restart PodQueue to load updated packages.")
 async def run_job_safely(job_name: str, sync_func, *args, **kwargs) -> bool:
     """Run a job in a thread pool with file-based locking to prevent concurrent execution"""
     async with state_lock:
