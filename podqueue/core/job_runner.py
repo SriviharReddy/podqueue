@@ -24,8 +24,15 @@ class JobState:
         self.last_exit_code = 0
 
 state = JobState()
-state_lock = asyncio.Lock()
+_state_lock = None
 job_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="podqueue_job")
+
+def _get_state_lock():
+    global _state_lock
+    if _state_lock is None:
+        _state_lock = asyncio.Lock()
+    return _state_lock
+
 
 def shutdown_job_runner():
     job_executor.shutdown(wait=False)
@@ -64,7 +71,7 @@ def update_ytdlp():
         job_logger.info("Upstream tools updated successfully. No supervisor detected; please restart PodQueue to load updated packages.")
 async def run_job_safely(job_name: str, sync_func, *args, **kwargs) -> bool:
     """Run a job in a thread pool with file-based locking to prevent concurrent execution"""
-    async with state_lock:
+    async with _get_state_lock():
         if state.running:
             job_logger.warning(f"Job '{state.current_job}' is already running. Cannot start '{job_name}'.")
             return False
@@ -100,7 +107,7 @@ async def run_job_safely(job_name: str, sync_func, *args, **kwargs) -> bool:
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(job_executor, _execute)
     finally:
-        async with state_lock:
+        async with _get_state_lock():
             state.running = False
             state.last_job = state.current_job or job_name
             state.current_job = None

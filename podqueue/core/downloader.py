@@ -75,7 +75,12 @@ def resolve_channel_url(url: str, cookies_file: Path = None) -> str:
     """Resolve @username or custom channel URL to standard channel URL and ensure it points to the videos tab"""
     resolved = url
     if "@" in url and "youtube.com" in url:
-        cookie_path = get_valid_cookies_file() if cookies_file == settings.COOKIES_FILE else (str(cookies_file) if cookies_file and cookies_file.exists() else None)
+        if cookies_file is None:
+            cookie_path = get_valid_cookies_file()
+        elif cookies_file.exists():
+            cookie_path = str(cookies_file)
+        else:
+            cookie_path = None
         opts = {
             'extract_flat': True,
             'playlistend': 1,
@@ -135,8 +140,13 @@ def cleanup_old_episodes(download_dir: Path, archive_file: Path, limit: int):
             except Exception as e:
                 job_logger.error(f"Error deleting audio file {file_path}: {e}")
                 
-            # Keep in archive file to prevent yt-dlp from infinitely redownloading this pruned episode in future runs.
-            pass
+            # Write the pruned video ID to the archive file to prevent yt-dlp
+            try:
+                with open(archive_file, "a", encoding="utf-8") as f:
+                    f.write(f"youtube {video_id}\n")
+                job_logger.info(f"[{download_dir.name}] Wrote {video_id} to archive to prevent re-download.")
+            except Exception as e:
+                job_logger.error(f"Error writing {video_id} to archive file: {e}")
 
 def cleanup_leftovers(download_dir: Path):
     """Clean up leftover temp files"""
@@ -225,7 +235,7 @@ def run_download_job(force: bool = False):
         with yt_dlp.YoutubeDL(flat_opts) as ydl:
             try:
                 # If URL is an @username URL, resolve it first
-                resolved_url = resolve_channel_url(channel.url, settings.COOKIES_FILE)
+                resolved_url = resolve_channel_url(channel.url)  # Uses get_valid_cookies_file() for default cookies
                 info = ydl.extract_info(resolved_url, download=False)
                 
                 if info:

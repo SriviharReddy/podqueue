@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+import asyncio
 import threading
 from typing import List, Union
 from pydantic import BaseModel, Field
@@ -93,16 +94,16 @@ def delete_channel_sync(channel_id: str) -> bool:
         return False
 
 async def load_channels() -> List[Channel]:
-    return load_channels_sync()
+    return await asyncio.to_thread(load_channels_sync)
 
 async def save_channels(channels: List[Channel]):
-    save_channels_sync(channels)
+    await asyncio.to_thread(save_channels_sync, channels)
 
 async def add_channel(channel: Channel) -> bool:
-    return add_channel_sync(channel)
+    return await asyncio.to_thread(add_channel_sync, channel)
 
 async def update_channel(channel_id: str, limit: int, sponsorblock: Union[bool, str], check_interval_hours: int) -> bool:
-    return update_channel_sync(channel_id, limit, sponsorblock, check_interval_hours)
+    return await asyncio.to_thread(update_channel_sync, channel_id, limit, sponsorblock, check_interval_hours)
 
 async def delete_channel(channel_id: str) -> bool:
-    return delete_channel_sync(channel_id)
+    return await asyncio.to_thread(delete_channel_sync, channel_id)

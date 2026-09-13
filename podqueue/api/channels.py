@@ -20,9 +20,9 @@ class ChannelCreate(BaseModel):
     check_interval_hours: int = Field(default=1, ge=1)
 
 class ChannelUpdate(BaseModel):
-    limit: int = Field(..., ge=1)
+    limit: int = Field(default=5, ge=1)
     sponsorblock: Union[bool, str] = False
-    check_interval_hours: int = Field(..., ge=1)
+    check_interval_hours: int = Field(default=1, ge=1)
 
 @router.get("/channels")
 async def list_channels(request: Request):
@@ -69,7 +69,7 @@ async def create_channel(request: Request, data: ChannelCreate):
     
     # Auto convert @username URLs in a thread pool
     try:
-        resolved_url = await asyncio.to_thread(resolve_channel_url, data.url, settings.COOKIES_FILE)
+        resolved_url = await asyncio.to_thread(resolve_channel_url, data.url)  # Uses get_valid_cookies_file() for default cookies
     except Exception as e:
         logger.error(f"Failed to resolve channel URL {data.url}: {e}")
         resolved_url = data.url

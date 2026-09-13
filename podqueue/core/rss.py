@@ -48,7 +48,7 @@ def cache_artwork(channel_id: str, image_url: str) -> str:
 def generate_rss(feed_name: str, podcast_dir: Path):
     job_logger.info(f"--- Processing feed for: {feed_name} ---")
     channel_title = feed_name
-    channel_desc = f"A podcast stream of audio from the Youtube Channel"
+    channel_desc = "A podcast stream of audio from the YouTube Channel"
     local_image_url = None
     local_artwork_path = settings.ARTWORK_DIR / f"{feed_name}.jpg"
     if local_artwork_path.exists():
@@ -100,7 +100,7 @@ def generate_rss(feed_name: str, podcast_dir: Path):
         
     # Find all audio files
     audio_files = sorted(
-        [f for f in os.listdir(podcast_dir) if (f.endswith('.m4a') or f.endswith('.mp3')) and not '.temp.' in f],
+        [f for f in os.listdir(podcast_dir) if (f.endswith('.m4a') or f.endswith('.mp3')) and not '.temp.' in f and '.part' not in f],
         key=lambda f: get_episode_sort_key(podcast_dir / f),
         reverse=True
     )

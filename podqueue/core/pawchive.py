@@ -214,10 +214,10 @@ def run_pawchive_download(channel: Channel, force: bool = False):
                                     f.write(chunk)
                                     
                         success = True
-                    except (requests.RequestException, Exception) as e:
+                    except requests.RequestException as e:
                         job_logger.warning(f"Download attempt {attempt} failed: {e}")
                         if attempt >= max_retries:
-                            raise e
+                            raise
                         else:
                             sleep_time = min(30, 2 ** attempt)
                             job_logger.info(f"Sleeping {sleep_time} seconds before retry...")

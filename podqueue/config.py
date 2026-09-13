@@ -38,11 +38,11 @@ class Settings:
         self.LOCK_FILE = self.DATA_DIR / "podqueue.lock"
         self.CHANNELS_FILE = self.DATA_DIR / "channels.json"
         
-        # Ensure dirs exist
-        self.DOWNLOADS_DIR.mkdir(parents=True, exist_ok=True)
-        self.FEEDS_DIR.mkdir(parents=True, exist_ok=True)
-        self.ARTWORK_DIR.mkdir(parents=True, exist_ok=True)
-        self.LOGS_DIR.mkdir(parents=True, exist_ok=True)
-        self.STATE_DIR.mkdir(parents=True, exist_ok=True)
+        # Ensure dirs exist (best-effort — don't crash on import if no write permission)
+        for d in (self.DOWNLOADS_DIR, self.FEEDS_DIR, self.ARTWORK_DIR, self.LOGS_DIR, self.STATE_DIR):
+            try:
+                d.mkdir(parents=True, exist_ok=True)
+            except OSError:
+                pass
 
 settings = Settings()
