@@ -3,7 +3,7 @@ import json
 import logging
 import asyncio
 import threading
-from typing import List, Union
+from typing import List, Union, Optional
 from pydantic import BaseModel, Field
 from podqueue.config import settings
 
@@ -68,15 +68,23 @@ def add_channel_sync(channel: Channel) -> bool:
         _save_channels_raw(raw)
         return True
 
-def update_channel_sync(channel_id: str, limit: int, sponsorblock: Union[bool, str], check_interval_hours: int) -> bool:
+def update_channel_sync(
+    channel_id: str,
+    limit: Optional[int] = None,
+    sponsorblock: Optional[Union[bool, str]] = None,
+    check_interval_hours: Optional[int] = None
+) -> bool:
     with _channels_lock:
         raw = _load_channels_raw()
         updated = False
         for item in raw:
             if item.get("id") == channel_id:
-                item["limit"] = limit
-                item["sponsorblock"] = sponsorblock
-                item["check_interval_hours"] = check_interval_hours
+                if limit is not None:
+                    item["limit"] = limit
+                if sponsorblock is not None:
+                    item["sponsorblock"] = sponsorblock
+                if check_interval_hours is not None:
+                    item["check_interval_hours"] = check_interval_hours
                 updated = True
                 break
         if updated:
@@ -102,7 +110,12 @@ async def save_channels(channels: List[Channel]):
 async def add_channel(channel: Channel) -> bool:
     return await asyncio.to_thread(add_channel_sync, channel)
 
-async def update_channel(channel_id: str, limit: int, sponsorblock: Union[bool, str], check_interval_hours: int) -> bool:
+async def update_channel(
+    channel_id: str,
+    limit: Optional[int] = None,
+    sponsorblock: Optional[Union[bool, str]] = None,
+    check_interval_hours: Optional[int] = None
+) -> bool:
     return await asyncio.to_thread(update_channel_sync, channel_id, limit, sponsorblock, check_interval_hours)
 
 async def delete_channel(channel_id: str) -> bool:

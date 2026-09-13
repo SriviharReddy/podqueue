@@ -38,12 +38,33 @@ async def test_channels_async_crud(tmp_path):
         assert loaded[0].id == "Chan1"
         assert loaded[0].limit == 5
         
-        # Update channel
+        # Update channel full
         assert await update_channel("Chan1", limit=10, sponsorblock=True, check_interval_hours=2) is True
         loaded = await load_channels()
         assert loaded[0].limit == 10
         assert loaded[0].sponsorblock is True
         assert loaded[0].check_interval_hours == 2
+        
+        # Partial update: only update sponsorblock; limit and check_interval_hours must be preserved
+        assert await update_channel("Chan1", sponsorblock=False) is True
+        loaded = await load_channels()
+        assert loaded[0].limit == 10
+        assert loaded[0].sponsorblock is False
+        assert loaded[0].check_interval_hours == 2
+
+        # Partial update: only update limit; sponsorblock and check_interval_hours must be preserved
+        assert await update_channel("Chan1", limit=25) is True
+        loaded = await load_channels()
+        assert loaded[0].limit == 25
+        assert loaded[0].sponsorblock is False
+        assert loaded[0].check_interval_hours == 2
+
+        # Partial update: only update check_interval_hours; limit and sponsorblock must be preserved
+        assert await update_channel("Chan1", check_interval_hours=6) is True
+        loaded = await load_channels()
+        assert loaded[0].limit == 25
+        assert loaded[0].sponsorblock is False
+        assert loaded[0].check_interval_hours == 6
         
         # Update non-existent channel
         assert await update_channel("NonExistent", limit=10, sponsorblock=False, check_interval_hours=1) is False
@@ -67,6 +88,14 @@ def test_channels_sync_crud(tmp_path):
         loaded = load_channels_sync()
         assert loaded[0].limit == 7
         assert loaded[0].sponsorblock == "sponsor"
+        assert loaded[0].check_interval_hours == 4
+        
+        # Partial sync update: update only limit
+        assert update_channel_sync("SyncChan", limit=12) is True
+        loaded = load_channels_sync()
+        assert loaded[0].limit == 12
+        assert loaded[0].sponsorblock == "sponsor"
+        assert loaded[0].check_interval_hours == 4
         
         assert delete_channel_sync("SyncChan") is True
         assert load_channels_sync() == []

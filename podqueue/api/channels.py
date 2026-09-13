@@ -1,7 +1,7 @@
 import shutil
 import asyncio
 import logging
-from typing import List, Union
+from typing import List, Union, Optional
 from fastapi import APIRouter, Request, HTTPException, status, UploadFile, File
 from pydantic import BaseModel, Field
 from podqueue.config import settings
@@ -20,9 +20,9 @@ class ChannelCreate(BaseModel):
     check_interval_hours: int = Field(default=1, ge=1)
 
 class ChannelUpdate(BaseModel):
-    limit: int = Field(default=5, ge=1)
-    sponsorblock: Union[bool, str] = False
-    check_interval_hours: int = Field(default=1, ge=1)
+    limit: Optional[int] = Field(default=None, ge=1)
+    sponsorblock: Optional[Union[bool, str]] = None
+    check_interval_hours: Optional[int] = Field(default=None, ge=1)
 
 @router.get("/channels")
 async def list_channels(request: Request):
@@ -96,9 +96,9 @@ async def edit_channel(request: Request, channel_id: str, data: ChannelUpdate):
     require_auth(request)
     success = await update_channel(
         channel_id,
-        data.limit,
-        data.sponsorblock,
-        data.check_interval_hours
+        limit=data.limit,
+        sponsorblock=data.sponsorblock,
+        check_interval_hours=data.check_interval_hours
     )
     if not success:
         raise HTTPException(

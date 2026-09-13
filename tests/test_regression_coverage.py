@@ -150,9 +150,43 @@ def test_channel_update_partial_update_allowed():
     """
     from podqueue.api.channels import ChannelUpdate
 
-    # Only updating sponsorblock should work
+    # Only updating sponsorblock should work and unspecified fields must default to None
     update = ChannelUpdate(sponsorblock=True)
     assert update.sponsorblock is True
+    assert update.limit is None
+    assert update.check_interval_hours is None
+
+
+def test_edit_channel_endpoint_partial_update_preserves_existing_values(tmp_path):
+    """Calling edit_channel with partial fields must not overwrite unspecified fields with defaults."""
+    from podqueue.api.channels import edit_channel, ChannelUpdate
+    from podqueue.core.channels import Channel, add_channel_sync, load_channels_sync
+
+    channels_file = tmp_path / "channels.json"
+    with patch.object(settings, "CHANNELS_FILE", channels_file):
+        add_channel_sync(Channel(id="TestChan", url="https://youtube.com/@TestChan", limit=20, sponsorblock=False, check_interval_hours=12))
+
+        mock_request = MagicMock()
+        mock_request.session = {"authenticated": True}
+
+        loop = asyncio.new_event_loop()
+        try:
+            # Partial update only sponsorblock
+            loop.run_until_complete(edit_channel(mock_request, "TestChan", ChannelUpdate(sponsorblock=True)))
+            channels = load_channels_sync()
+            assert len(channels) == 1
+            assert channels[0].sponsorblock is True
+            assert channels[0].limit == 20, "Limit must not be overwritten to default 5"
+            assert channels[0].check_interval_hours == 12, "Interval must not be overwritten to default 1"
+
+            # Partial update only limit
+            loop.run_until_complete(edit_channel(mock_request, "TestChan", ChannelUpdate(limit=10)))
+            channels = load_channels_sync()
+            assert channels[0].limit == 10
+            assert channels[0].sponsorblock is True, "Sponsorblock must not be overwritten to default False"
+            assert channels[0].check_interval_hours == 12, "Interval must not be overwritten"
+        finally:
+            loop.close()
 
 
 # ─── Bug: API auth enforcement on all endpoints ─────────────────────────────────
