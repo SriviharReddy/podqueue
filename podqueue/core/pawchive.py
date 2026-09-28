@@ -27,6 +27,55 @@ def strip_html_tags(text: str) -> str:
     text = re.sub(r'\n+', '\n', text).strip()
     return text
 
+_JSON_VALUE_STARTS = '[{"-0123456789tfn'
+
+def _iter_json_documents(text: str):
+    """Yield every JSON value in gallery-dl's stdout, skipping non-JSON noise.
+
+    gallery-dl pretty-prints its --dump-json output across many lines, so
+    decoding line by line yields nothing; decoding the whole text is required.
+    """
+    decoder = json.JSONDecoder()
+    index = 0
+    length = len(text)
+    while index < length:
+        while index < length and text[index] not in _JSON_VALUE_STARTS:
+            index += 1
+        if index >= length:
+            return
+        try:
+            value, index = decoder.raw_decode(text, index)
+        except ValueError:
+            newline = text.find("\n", index)
+            if newline == -1:
+                return
+            index = newline + 1
+            continue
+        yield value
+
+def _is_item(value) -> bool:
+    """True for gallery-dl's [type_code, ...metadata] tuples."""
+    return isinstance(value, list) and any(isinstance(part, dict) for part in value[1:3])
+
+def _iter_items(document):
+    """Flatten a decoded document down to gallery-dl item tuples."""
+    if isinstance(document, dict):
+        yield document
+    elif _is_item(document):
+        yield document
+    elif isinstance(document, list):
+        for element in document:
+            yield from _iter_items(element)
+
+def _extract_metadata(item):
+    if isinstance(item, dict):
+        return item
+    if isinstance(item, list):
+        for part in item[1:3]:
+            if isinstance(part, dict):
+                return part
+    return None
+
 def run_pawchive_download(channel: Channel, force: bool = False):
     from podqueue.core.downloader import cleanup_old_episodes, cleanup_leftovers
     job_logger.info(f"Starting Pawchive podcast sync for {channel.id}...")
@@ -103,32 +152,21 @@ def run_pawchive_download(channel: Channel, force: bool = False):
             job_logger.error(f"gallery-dl failed with code {result.returncode}: {result.stderr}")
             return
         
-        # Parse stdout JSON Lines (one JSON object per line)
-        raw_data = []
-        for line in result.stdout.splitlines():
-            line = line.strip()
-            if line:
-                try:
-                    raw_data.append(json.loads(line))
-                except json.JSONDecodeError:
-                    continue
-        
-        # gallery-dl prints list of arrays where each item has format: [type_code, metadata_dict] or [type_code, url/payload, metadata_dict]
+        # gallery-dl's --dump-json writes a single pretty-printed JSON document
+        # (indent=2), not JSON Lines, so it has to be decoded as a whole.
         posts_metadata = {}
-        for item in raw_data:
-            meta = None
-            if isinstance(item, list):
-                if len(item) >= 3 and isinstance(item[2], dict):
-                    meta = item[2]
-                elif len(item) == 2 and isinstance(item[1], dict):
-                    meta = item[1]
-            elif isinstance(item, dict):
-                meta = item
-                
-            if meta:
-                post_id = meta.get("id")
-                if post_id:
-                    posts_metadata[post_id] = meta
+        for doc in _iter_json_documents(result.stdout):
+            for item in _iter_items(doc):
+                meta = _extract_metadata(item)
+                if meta:
+                    post_id = meta.get("id")
+                    if post_id:
+                        posts_metadata[post_id] = meta
+        if not posts_metadata:
+            job_logger.warning(
+                f"gallery-dl returned no posts for {target_url} "
+                f"({len(result.stdout)} bytes of stdout) - upstream may have changed its output format."
+            )
     except Exception as e:
         job_logger.error(f"Error executing gallery-dl: {e}")
         return

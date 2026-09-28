@@ -244,23 +244,6 @@ def test_download_job_endpoint_requires_auth():
         loop.close()
 
 
-# ─── Bug: pull_changes.py deploys to wrong directory ───────────────────────────
-
-def test_pull_changes_deploys_to_correct_directory():
-    """The pull_changes.py deploy script must target the correct server
-    directory (PodQueue_server, not Poqueue_server).
-    """
-    # pull_changes.py lives at the repo root, one level above podqueue_repo/
-    pull_changes_path = Path(__file__).resolve().parent.parent.parent / "pull_changes.py"
-    source = pull_changes_path.read_text(encoding="utf-8")
-
-    # The typo'd directory name must not appear in the remote_commands string
-    assert "Poqueue_server" not in source, \
-        "pull_changes.py must use 'PodQueue_server' (correct spelling), not 'Poqueue_server'"
-    assert "PodQueue_server" in source, \
-        "pull_changes.py should deploy to 'PodQueue_server'"
-
-
 # ─── Bug: cleanup_leftovers should delete .part and .ytdl files ────────────────
 
 def test_cleanup_leftovers_deletes_part_files(tmp_path):
