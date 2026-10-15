@@ -109,6 +109,12 @@ graph TD
 - `align.mjs` streams the local file through `FingerprintSession`, then calls
   `detect_ads(showFingerprint, clientFingerprint)` and prints `{gaps, blocks}`.
 - Wrapped for Python by `podqueue/utils/castria_align.py` (`run_aligner`).
+- The per-run wall-clock budget is
+  `max(CASTRIA_ALIGN_TIMEOUT_SECONDS, duration * ALIGN_TIMEOUT_PER_AUDIO_SECOND)`
+  with a factor of 3, so a multi-hour episode is not cut off mid-alignment (a
+  fixed 1 h cap silently published a 2.8 h episode with its ads).
+- The Node process runs under `nice -n 10` so one long alignment cannot starve
+  the web UI or SSH on a single-box host.
 
 ### C. Router — `podqueue/core/downloader.py`
 
@@ -128,6 +134,17 @@ graph TD
   standard `info.json` fields, and sorts by `upload_date`; `cleanup_old_episodes`
   bounds the episode count. Feed artwork is served from
   `data/artwork/<channel_id>.jpg`, which the runner caches from the show image.
+
+### F. Web UI — `static/`
+
+- The Add Channel modal accepts `castria:` sources (its source field was
+  `type=url`, which silently rejected them) and offers a **Load** button beside
+  it that lists the account's Castria shows and fills in
+  `castria:<subscriptionId>`, pre-filling a slugged feed id.
+- Channel cards show a Castria icon, the show target, and
+  `Ads: Removed (Castria aligner)` in place of the SponsorBlock row.
+- Backed by `GET /api/castria/subscriptions` (authenticated), which trims the
+  upstream subscription objects to `id/title/url/imageUrl/episodeCount`.
 
 ---
 
@@ -178,4 +195,11 @@ curl -X POST http://localhost:8000/api/channels \
   ad-stripped audio of a third-party podcast is redistribution; keep the feed
   private/tokenised if you only need it for yourself.
 - **CPU** — alignment is CPU-bound (single Node process); downloads and ffmpeg
-  are sequential, consistent with PodQueue's existing resource budget.
+  are sequential, consistent with PodQueue's existing resource budget. Measured
+  on the Oracle AMD micro VM, an episode takes roughly `duration / 5` seconds to
+  align under load, so a 2.8 h episode needs ~30–60 min. The aligner is `nice`d
+  and the timeout scales with episode length.
+- **Failure is explicit** — if alignment cannot complete (e.g. the engine times
+  out), the episode is published unchanged and `info.json` records
+  `castria.adSource == "failed"`, rather than reporting a misleading "no ads
+  found".
