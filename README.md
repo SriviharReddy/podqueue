@@ -1,6 +1,6 @@
 # PodQueue
 
-**Convert YouTube channels/playlists and Pawchive patron archives into podcast RSS feeds.** 
+**Convert YouTube channels/playlists, Pawchive patron archives, and ad-free Castria podcast episodes into podcast RSS feeds.** 
 PodQueue is a lightweight, self-hosted service that automatically syncs video/post uploads to audio (M4A or MP3) podcast episodes, hosting them with range-request compatible feeds for seamless playback in any podcast player (such as Overcast, Pocket Casts, or Apple Podcasts).
 
 Rebuilt from the ground up for maximum efficiency, it operates on a FastAPI asynchronous backend and a premium vanilla HTML/CSS/JS frontend, optimized to run within standard constraints (e.g. 1GB RAM on Oracle Cloud Always Free AMD).
@@ -11,6 +11,7 @@ Rebuilt from the ground up for maximum efficiency, it operates on a FastAPI asyn
 
 - ⚡ **Lightweight & Fast** - Built on FastAPI (docs disabled in production for minimal memory usage).
 - 🔄 **Programmatic Downloader** - Leverages `yt-dlp` Python API and `gallery-dl` (no external Bash/JQ dependencies) with flat extraction pre-passes.
+- 🎧 **Castria Ad-Skip Source** - `castria:` channels pull episodes from [Castria](https://castria.app) and remove their ads with Castria's own fingerprint-alignment engine (WASM, run via Node) before publishing, so any player gets an ad-free feed.
 - ⚙️ **Optimized for 1 GB RAM** - Sequential job runner (`filelock`) and single-threaded `ffmpeg` processing keep resources bounded.
 - 📅 **Built-in Scheduler** - In-process scheduler (`APScheduler`) manages periodic syncs and daily `yt-dlp` / `gallery-dl` updates.
 - 📻 **iTunes & Podlove Compatible** - Feeds support standard iTunes authoring, custom/uploaded artwork, and Simple Chapters (`psc:chapters`).
@@ -27,7 +28,8 @@ podqueue/
 ├── podqueue/               # Python package
 │   ├── api/                # FastAPI routers (auth, channels, jobs)
 │   ├── core/               # Downloader, RSS Generator, Scheduler, Job Runner
-│   └── utils/              # Media helpers, logging configuration
+│   └── utils/              # Media helpers, Castria aligner bridge, logging
+├── tools/                  # Vendored Castria WASM engine + Node aligner harness
 ├── static/                 # Frontend SPA files
 ├── data/                   # Runtime data (gitignored)
 │   ├── downloads/          # Downloaded audio episodes
@@ -132,6 +134,50 @@ Alternatively, run the development server manually:
 source venv/bin/activate
 uvicorn podqueue.api.main:app --host 0.0.0.0 --port 8000
 ```
+
+---
+
+## Ad-Free Podcasts via Castria
+
+PodQueue can subscribe to a show you already follow in [Castria](https://castria.app)
+and publish an **ad-stripped** version of it. Episodes are downloaded from the
+publisher's feed and their pre/mid/post-roll ads are removed using Castria's own
+alignment engine, so the resulting feed plays ad-free in any podcast app.
+
+This is accurate even when the host uses *dynamic ad insertion* (the ads in your
+download differ from the ones Castria saw): PodQueue takes the episode's show
+fingerprint from Castria and aligns it against your actual file.
+
+### Requirements
+
+- Your Castria account credentials in `.env`:
+
+  ```ini
+  CASTRIA_EMAIL=you@example.com
+  CASTRIA_PASSWORD=your-castria-password
+  ```
+
+- **Node.js** on the host (drives the vendored WASM aligner in `tools/`).
+- The show must be added to your Castria subscriptions first.
+
+### Adding a channel
+
+Create a channel whose URL is `castria:<target>`, where `<target>` is a Castria
+subscription id, the show's original feed URL, or the show title:
+
+```bash
+curl -X POST http://localhost:8000/api/channels \
+  -H 'Content-Type: application/json' \
+  -d '{"id":"some-show","url":"castria:<subscriptionId>","limit":5,"check_interval_hours":6}'
+```
+
+The feed then appears at `/feeds/some-show.xml`. See
+`docs/superpowers/specs/2026-10-15-castria-adskip-integration-design.md` for the
+full design, and `tools/castria_align/README.md` for the engine's provenance.
+
+> **Note:** PodQueue feeds are public by default. Re-publishing ad-stripped audio
+> of a third-party show is redistribution - keep the feed private if it is only
+> for your own listening.
 
 ---
 

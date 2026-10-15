@@ -28,6 +28,24 @@ class Settings:
         self.SCHEDULE_INTERVAL_MINUTES = int(os.getenv("SCHEDULE_INTERVAL_MINUTES", "60"))
         # Optional proxy for yt-dlp (e.g. socks5://127.0.0.1:40000 for Cloudflare Warp)
         self.YTDLP_PROXY = os.getenv("YTDLP_PROXY", "").strip() or None
+
+        # --- Castria ad-skip source -------------------------------------
+        # Channels whose url is "castria:<subscriptionId|feedUrl>" are populated
+        # from https://castria.app and have their ads removed before publishing.
+        self.CASTRIA_BASE_URL = os.getenv("CASTRIA_BASE_URL", "https://castria.app").rstrip("/")
+        self.CASTRIA_EMAIL = os.getenv("CASTRIA_EMAIL", "").strip()
+        self.CASTRIA_PASSWORD = os.getenv("CASTRIA_PASSWORD", "")
+        # Sent as X-App-Version; the server gates some endpoints on this.
+        self.CASTRIA_APP_VERSION = os.getenv("CASTRIA_APP_VERSION", "2272").strip()
+        # Node runtime + vendored engine (see tools/castria_align).
+        self.CASTRIA_NODE_BIN = os.getenv("CASTRIA_NODE_BIN", "node").strip() or "node"
+        self.CASTRIA_ALIGN_TOOL = ROOT_DIR / "tools" / "castria_align" / "align.mjs"
+        self.CASTRIA_ALIGN_TIMEOUT_SECONDS = int(os.getenv("CASTRIA_ALIGN_TIMEOUT_SECONDS", "3600"))
+        self.CASTRIA_ALIGN_ENABLED = os.getenv("CASTRIA_ALIGN_ENABLED", "true").strip().lower() not in ("0", "false", "no", "off")
+        # When alignment is impossible, optionally fall back to the server's raw
+        # adSegments. These are timed against Castria's copy, NOT ours, so they
+        # can be wrong under dynamic ad insertion - hence off by default.
+        self.CASTRIA_ALLOW_TIMESTAMP_FALLBACK = os.getenv("CASTRIA_ALLOW_TIMESTAMP_FALLBACK", "false").strip().lower() in ("1", "true", "yes", "on")
         
         # Deduced paths inside DATA_DIR
         self.DOWNLOADS_DIR = self.DATA_DIR / "downloads"

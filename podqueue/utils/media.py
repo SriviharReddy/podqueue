@@ -220,3 +220,101 @@ def get_audio_duration(file_path: Path) -> int:
         logger.error(f"Error extracting duration using ffprobe for {file_path.name}: {e}")
     return 0
 
+
+def get_audio_duration_seconds(file_path: Path) -> float:
+    """Like :func:`get_audio_duration` but keeps sub-second precision."""
+    try:
+        cmd = [
+            "ffprobe",
+            "-v", "error",
+            "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            str(file_path)
+        ]
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if result.returncode == 0:
+            value = result.stdout.strip()
+            if value:
+                return float(value)
+    except Exception as e:
+        logger.error(f"Error extracting precise duration for {file_path.name}: {e}")
+    return 0.0
+
+
+def merge_ranges(ranges, duration: float = None) -> list:
+    """Normalise ``[(start, end), ...]`` second ranges: clamp, sort, merge overlaps.
+
+    Returns a list of disjoint ``(start, end)`` tuples. Ranges with no duration
+    (or out of bounds) are dropped. This is used to turn a set of ad gaps into a
+    clean "remove these" set before cutting.
+    """
+    cleaned = []
+    for item in ranges or []:
+        try:
+            start, end = float(item[0]), float(item[1])
+        except (TypeError, ValueError, IndexError):
+            continue
+        if duration:
+            start = max(0.0, min(start, duration))
+            end = max(0.0, min(end, duration))
+        if end <= start:
+            continue
+        cleaned.append((start, end))
+
+    cleaned.sort(key=lambda r: r[0])
+    merged = []
+    for start, end in cleaned:
+        if merged and start <= merged[-1][1]:
+            prev_start, prev_end = merged[-1]
+            merged[-1] = (prev_start, max(prev_end, end))
+        else:
+            merged.append((start, end))
+    return merged
+
+
+def build_aselect_expression(ranges) -> str:
+    """Build the audio ``aselect`` expression that DROPS the given ranges."""
+    terms = [f"between(t,{start:.3f},{end:.3f})" for start, end in ranges]
+    if not terms:
+        return ""
+    return "not(" + "+".join(terms) + ")"
+
+
+def cut_audio_segments(src: Path, dst: Path, remove_ranges, bitrate: str = "128k", threads: int = 1) -> bool:
+    """Re-encode ``src`` to ``dst`` with ``remove_ranges`` seconds spliced out.
+
+    ``remove_ranges`` is an iterable of ``(start, end)`` seconds to delete. The
+    result is a lossy mp3 re-encode (the source is mp3 too). Returns True when a
+    file was written, False when there was nothing to remove.
+    """
+    duration = get_audio_duration_seconds(src)
+    ranges = merge_ranges(remove_ranges, duration=duration)
+    if not ranges:
+        return False
+
+    # If the removal covers essentially the whole file there is nothing to keep.
+    if duration and sum(end - start for start, end in ranges) >= duration - 0.5:
+        logger.warning(f"Ad ranges cover the whole of {src.name}; skipping cut")
+        return False
+
+    expression = build_aselect_expression(ranges)
+    audio_filter = f"aselect='{expression}',asetpts=N/SR/TB"
+
+    cmd = [
+        "ffmpeg",
+        "-hide_banner",
+        "-nostdin",
+        "-y",
+        "-i", str(src),
+        "-af", audio_filter,
+        "-c:a", "libmp3lame",
+        "-b:a", bitrate,
+        "-threads", str(threads),
+        str(dst),
+    ]
+    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    if result.returncode != 0:
+        logger.error(f"ffmpeg cut failed for {src.name}: {result.stderr.strip()[-400:]}")
+        return False
+    return True
+

@@ -1,7 +1,7 @@
 import json
 import xml.etree.ElementTree as ET
 import pytest
-from podqueue.utils.media import sanitize_title, parse_chapters_from_description, extract_chapters
+from podqueue.utils.media import sanitize_title, parse_chapters_from_description, extract_chapters, merge_ranges, build_aselect_expression
 from podqueue.core.rss import generate_rss
 from podqueue.config import settings
 from unittest.mock import patch
@@ -14,6 +14,19 @@ def test_sanitize_title_preserves_punctuation():
     # Extra whitespace and unprintable control characters should be stripped
     messy = "  Episode 1:  Hello \x00\x08World!  \t\n  "
     assert sanitize_title(messy) == "Episode 1: Hello World!"
+
+def test_merge_ranges_clamps_and_merges():
+    # out-of-bounds clamped, overlapping/adjacent merged
+    assert merge_ranges([(5, 10), (1, 2), (9, 12), (-3, 1.5)], duration=20) == [(0.0, 2.0), (5.0, 12.0)]
+    assert merge_ranges([], duration=20) == []
+    # fully out of bounds -> dropped
+    assert merge_ranges([(30, 40)], duration=20) == []
+    # backwards range -> dropped
+    assert merge_ranges([(10, 5)], duration=20) == []
+
+def test_build_aselect_expression():
+    assert build_aselect_expression([(0, 160.4), (728.18, 911.01)]) == "not(between(t,0.000,160.400)+between(t,728.180,911.010))"
+    assert build_aselect_expression([]) == ""
 
 def test_parse_chapters_from_description():
     desc = """

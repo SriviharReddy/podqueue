@@ -10,6 +10,7 @@ from podqueue.config import settings
 from podqueue.core.channels import Channel, load_channels_sync
 from podqueue.utils.media import get_episode_sort_key
 from podqueue.core.pawchive import is_pawchive_url, run_pawchive_download
+from podqueue.core.castria import is_castria_url, run_castria_download
 
 logger = logging.getLogger("podqueue")
 job_logger = logging.getLogger("podqueue_job")
@@ -177,6 +178,13 @@ def run_download_job(force: bool = False):
                 run_pawchive_download(channel, force=force)
             except Exception as e:
                 job_logger.error(f"Error in Pawchive downloader for {channel.id}: {e}")
+            continue
+
+        if is_castria_url(channel.url):
+            try:
+                run_castria_download(channel, force=force)
+            except Exception as e:
+                job_logger.error(f"Error in Castria downloader for {channel.id}: {e}")
             continue
             
         # Check interval
