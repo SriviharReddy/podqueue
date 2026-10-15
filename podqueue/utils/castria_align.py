@@ -47,6 +47,19 @@ def resolve_timeout(audio_path: Path, configured: Optional[int] = None) -> int:
     return base
 
 
+def exceeds_align_ceiling(duration_seconds: float, ceiling: Optional[int] = None) -> bool:
+    """Whether ``duration_seconds`` is past Castria's whole-file alignment ceiling.
+
+    The vendored engine carries an internal guard (it calls it "bug-543") that
+    aborts once the accumulated decoded duration of a single fingerprint session
+    passes :data:`settings.CASTRIA_MAX_ALIGN_DURATION_SECONDS` (7200s / 2h by
+    default). Episodes beyond it can never be aligned in one pass, so callers
+    should skip the aligner rather than spend a full decode discovering this.
+    """
+    limit = settings.CASTRIA_MAX_ALIGN_DURATION_SECONDS if ceiling is None else ceiling
+    return bool(duration_seconds) and duration_seconds > limit
+
+
 
 def aligner_available() -> bool:
     """True when the Node harness and its wasm payload are present."""

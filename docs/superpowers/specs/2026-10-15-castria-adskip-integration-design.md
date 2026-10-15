@@ -115,6 +115,15 @@ graph TD
   fixed 1 h cap silently published a 2.8 h episode with its ads).
 - The Node process runs under `nice -n 10` so one long alignment cannot starve
   the web UI or SSH on a single-box host.
+- **The engine only aligns up to 7200 s (2 h) of decoded audio.** It carries an
+  internal guard (its own name: *"bug-543"*) that aborts the whole-file DSP path
+  once the accumulated decoded duration passes that ceiling — verified against a
+  10 113 s episode, which fails with
+  `bug-543 guard tripped … exceeded the 7200s safe ceiling`. Episodes longer
+  than `CASTRIA_MAX_ALIGN_DURATION_SECONDS` are therefore skipped *before* the
+  aligner (`info.json` records `adSource == "too-long"`) rather than spending a
+  full decode to hit the guard. The crowd skip-map is still tried first, since
+  it has no duration limit.
 
 ### C. Router — `podqueue/core/downloader.py`
 
@@ -202,4 +211,9 @@ curl -X POST http://localhost:8000/api/channels \
 - **Failure is explicit** — if alignment cannot complete (e.g. the engine times
   out), the episode is published unchanged and `info.json` records
   `castria.adSource == "failed"`, rather than reporting a misleading "no ads
-  found".
+  found". The same applies to `adSource == "too-long"` for episodes past the
+  engine's 2 h ceiling.
+- **Episodes over 2 h keep their ads** — a hard limit of the vendored engine, not
+  of this integration. Such episodes are still published (and archived) so they
+  are never re-downloaded; if another Castria client later submits a skip-map
+  for the same file hash, a subsequent run will use it.

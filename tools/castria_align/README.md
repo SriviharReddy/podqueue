@@ -54,5 +54,17 @@ body containing it). Output is a single JSON object on stdout:
 PodQueue calls this via `podqueue/utils/castria_align.py`; you normally don't
 run it by hand.
 
-Requires Node.js (tested on v20/v24). Memory stays low because the file is read
-in small ranges as the fingerprint session consumes it.
+## Limits
+
+- **Whole-file only, and at most 7200 s (2 h).** `FingerprintSession` carries an
+  internal guard (it labels it *"bug-543"*) that aborts once the accumulated
+  **decoded** duration passes 7200 s — `79380000` samples at 11 025 Hz — with
+  `refusing to continue the whole-file DSP path`. Longer episodes cannot be
+  aligned through this harness at all.
+- **Memory grows with duration, not with file size.** The session accumulates
+  fingerprint state across the whole episode, so a 2 h file needs a few hundred
+  MB of Node/wasm heap. The range fetcher itself only ever holds one chunk, but
+  that does not bound total usage. On a small host, run it `nice`d and with swap
+  available.
+
+Requires Node.js (tested on v20/v24).

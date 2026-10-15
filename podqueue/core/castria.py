@@ -42,7 +42,7 @@ import requests
 
 from podqueue.config import settings
 from podqueue.core.channels import Channel
-from podqueue.utils.castria_align import AlignerError, run_aligner
+from podqueue.utils.castria_align import AlignerError, exceeds_align_ceiling, run_aligner
 from podqueue.utils.media import (
     cut_audio_segments,
     get_audio_duration,
@@ -381,14 +381,17 @@ def _episode_ready(episode: dict) -> bool:
 
 def _resolve_gaps(client: CastriaClient, episode: dict, audio_path: Path) -> Tuple[List[Tuple[float, float]], str]:
     """Return ``(gaps, source)`` where source is one of
-    ``skipplan|alignment|adSegments|failed|none``.
+    ``skipplan|alignment|adSegments|too-long|failed|none``.
 
     ``failed`` means alignment was attempted but did not succeed (e.g. the
-    engine timed out), which is not the same as ``none`` (genuinely no ads)."""
+    engine timed out); ``too-long`` means the episode is past the engine's
+    whole-file ceiling (2h) so alignment was not attempted; ``none`` means
+    genuinely no ads were found."""
     ep_id = episode.get("id")
     alignment_failed = False
 
-    # 1. free exact hit from the crowd skip-map cache, keyed by our file hash
+    # 1. free exact hit from the crowd skip-map cache, keyed by our file hash.
+    #    It has no duration limit, so it is worth trying even for long episodes.
     try:
         file_hash = _sha256_file(audio_path)
         plan = client.get_skipplan(ep_id, file_hash)
@@ -399,8 +402,17 @@ def _resolve_gaps(client: CastriaClient, episode: dict, audio_path: Path) -> Tup
     except CastriaError as e:
         job_logger.warning(f"[{ep_id}] skip-map lookup failed: {e}")
 
-    # 2. run Castria's own aligner against the show fingerprint
-    if settings.CASTRIA_ALIGN_ENABLED and episode.get("showFingerprintAvailable"):
+    # 2. run Castria's own aligner against the show fingerprint, unless the
+    #    episode is longer than the engine will process in one pass.
+    duration = get_audio_duration_seconds(audio_path)
+    too_long = exceeds_align_ceiling(duration)
+    if too_long:
+        job_logger.warning(
+            f"[{ep_id}] Episode is {duration:.0f}s, past Castria's "
+            f"{settings.CASTRIA_MAX_ALIGN_DURATION_SECONDS}s whole-file alignment ceiling "
+            '(engine "bug-543" guard); skipping the aligner.'
+        )
+    elif settings.CASTRIA_ALIGN_ENABLED and episode.get("showFingerprintAvailable"):
         try:
             fingerprint = client.get_fingerprint(ep_id)
             if fingerprint:
@@ -429,6 +441,8 @@ def _resolve_gaps(client: CastriaClient, episode: dict, audio_path: Path) -> Tup
         except CastriaError as e:
             job_logger.warning(f"[{ep_id}] adSegments fallback failed: {e}")
 
+    if too_long:
+        return [], "too-long"
     return [], ("failed" if alignment_failed else "none")
 
 
@@ -529,6 +543,10 @@ def _process_episode(client: CastriaClient, channel: Channel, episode: dict, dow
         elif source == "failed":
             job_logger.warning(
                 f"[{ep_id}] Could not determine ad ranges; publishing unchanged (ads may still be present)"
+            )
+        elif source == "too-long":
+            job_logger.warning(
+                f"[{ep_id}] Episode is too long for Castria's aligner; publishing unchanged (ads will remain)"
             )
         else:
             job_logger.info(f"[{ep_id}] No ad gaps found ({source}); publishing unchanged")

@@ -350,3 +350,58 @@ def test_resolve_gaps_reports_empty_result_as_success(tmp_path):
 
     assert gaps == []
     assert source == "alignment"
+
+
+# --------------------------------------------------------------------------- #
+# The engine's whole-file duration ceiling ("bug-543")
+# --------------------------------------------------------------------------- #
+
+def test_exceeds_align_ceiling():
+    from podqueue.utils.castria_align import exceeds_align_ceiling
+
+    with patch.object(settings, "CASTRIA_MAX_ALIGN_DURATION_SECONDS", 7200):
+        assert exceeds_align_ceiling(7200) is False       # exactly at the limit is fine
+        assert exceeds_align_ceiling(7200.5) is True
+        assert exceeds_align_ceiling(10113) is True       # the 2.8h episode
+        assert exceeds_align_ceiling(600) is False
+        assert exceeds_align_ceiling(0) is False          # unknown duration must not block
+
+
+def test_resolve_gaps_skips_aligner_for_over_long_episodes(tmp_path):
+    from podqueue.core.castria import _resolve_gaps
+
+    audio = tmp_path / "long.mp3"
+    audio.write_bytes(b"x")
+    episode = {"id": "ep-long", "showFingerprintAvailable": True}
+
+    with patch.object(settings, "CASTRIA_ALIGN_ENABLED", True), \
+         patch.object(settings, "CASTRIA_MAX_ALIGN_DURATION_SECONDS", 7200), \
+         patch("podqueue.core.castria.get_audio_duration_seconds", return_value=10113.0), \
+         patch("podqueue.core.castria.run_aligner") as m_align:
+        gaps, source = _resolve_gaps(_StubClient(), episode, audio)
+
+    assert gaps == []
+    assert source == "too-long"
+    m_align.assert_not_called()
+
+
+def test_resolve_gaps_still_uses_crowd_skipmap_for_over_long_episodes(tmp_path):
+    """The skip-map has no duration limit, so it must be tried before the ceiling."""
+    from podqueue.core.castria import _resolve_gaps
+
+    audio = tmp_path / "long.mp3"
+    audio.write_bytes(b"x")
+    episode = {"id": "ep-long2", "showFingerprintAvailable": True}
+
+    class SkipMapClient(_StubClient):
+        def get_skipplan(self, *args, **kwargs):
+            return {"gaps": [[0, 30.0], [500.0, 560.0]]}
+
+    with patch.object(settings, "CASTRIA_MAX_ALIGN_DURATION_SECONDS", 7200), \
+         patch("podqueue.core.castria.get_audio_duration_seconds", return_value=10113.0), \
+         patch("podqueue.core.castria.run_aligner") as m_align:
+        gaps, source = _resolve_gaps(SkipMapClient(), episode, audio)
+
+    assert gaps == [(0.0, 30.0), (500.0, 560.0)]
+    assert source == "skipplan"
+    m_align.assert_not_called()

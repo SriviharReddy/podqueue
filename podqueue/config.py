@@ -42,6 +42,10 @@ class Settings:
         self.CASTRIA_ALIGN_TOOL = ROOT_DIR / "tools" / "castria_align" / "align.mjs"
         self.CASTRIA_ALIGN_TIMEOUT_SECONDS = int(os.getenv("CASTRIA_ALIGN_TIMEOUT_SECONDS", "3600"))
         self.CASTRIA_ALIGN_ENABLED = os.getenv("CASTRIA_ALIGN_ENABLED", "true").strip().lower() not in ("0", "false", "no", "off")
+        # Castria's engine refuses to align more than 7200s (2h) of decoded audio
+        # in one pass (its internal "bug-543" guard), so episodes longer than
+        # this are not worth a full decode - the aligner is skipped for them.
+        self.CASTRIA_MAX_ALIGN_DURATION_SECONDS = int(os.getenv("CASTRIA_MAX_ALIGN_DURATION_SECONDS", "7200"))
         # When alignment is impossible, optionally fall back to the server's raw
         # adSegments. These are timed against Castria's copy, NOT ours, so they
         # can be wrong under dynamic ad insertion - hence off by default.
