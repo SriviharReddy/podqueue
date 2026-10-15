@@ -217,3 +217,75 @@ def test_download_job_routes_castria_channels():
         run_download_job(force=True)
     m_castria.assert_called_once()
     assert m_castria.call_args[0][0].id == "CastriaChan"
+
+
+# --------------------------------------------------------------------------- #
+# UI helper endpoint: GET /api/castria/subscriptions
+# --------------------------------------------------------------------------- #
+
+def _authed_request():
+    request = MagicMock()
+    request.session = {"authenticated": True}
+    return request
+
+
+@pytest.mark.asyncio
+async def test_list_castria_subscriptions_returns_trimmed_shows():
+    from podqueue.api.channels import list_castria_subscriptions
+
+    raw = [{
+        "id": "sub-1", "title": "Show A", "url": "https://feed/a",
+        "imageUrl": "https://img/a.jpg", "episodeCount": 12,
+        "accessToken": "should-not-leak",
+    }]
+
+    with patch.object(settings, "CASTRIA_EMAIL", "u@example.com"), \
+         patch.object(settings, "CASTRIA_PASSWORD", "pw"), \
+         patch("podqueue.api.channels.CastriaClient") as m_client:
+        m_client.return_value.get_subscriptions.return_value = raw
+        result = await list_castria_subscriptions(_authed_request())
+
+    assert result == [{
+        "id": "sub-1", "title": "Show A", "url": "https://feed/a",
+        "imageUrl": "https://img/a.jpg", "episodeCount": 12,
+    }]
+
+
+@pytest.mark.asyncio
+async def test_list_castria_subscriptions_requires_auth():
+    from fastapi import HTTPException
+    from podqueue.api.channels import list_castria_subscriptions
+
+    request = MagicMock()
+    request.session = {}
+
+    with pytest.raises(HTTPException) as exc:
+        await list_castria_subscriptions(request)
+    assert exc.value.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_list_castria_subscriptions_requires_credentials():
+    from fastapi import HTTPException
+    from podqueue.api.channels import list_castria_subscriptions
+
+    with patch.object(settings, "CASTRIA_EMAIL", ""), \
+         patch.object(settings, "CASTRIA_PASSWORD", ""):
+        with pytest.raises(HTTPException) as exc:
+            await list_castria_subscriptions(_authed_request())
+    assert exc.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_list_castria_subscriptions_surfaces_api_errors():
+    from fastapi import HTTPException
+    from podqueue.api.channels import list_castria_subscriptions
+    from podqueue.core.castria import CastriaApiError
+
+    with patch.object(settings, "CASTRIA_EMAIL", "u@example.com"), \
+         patch.object(settings, "CASTRIA_PASSWORD", "pw"), \
+         patch("podqueue.api.channels.CastriaClient") as m_client:
+        m_client.return_value.get_subscriptions.side_effect = CastriaApiError("boom")
+        with pytest.raises(HTTPException) as exc:
+            await list_castria_subscriptions(_authed_request())
+    assert exc.value.status_code == 502

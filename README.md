@@ -162,8 +162,11 @@ fingerprint from Castria and aligns it against your actual file.
 
 ### Adding a channel
 
-Create a channel whose URL is `castria:<target>`, where `<target>` is a Castria
-subscription id, the show's original feed URL, or the show title:
+In the web UI, open **Add Channel** and press **Load** beside the source field
+to pick one of your Castria shows (it fills in `castria:<subscriptionId>` for
+you). You can also create one directly via the API — the source URL is
+`castria:<target>`, where `<target>` is a Castria subscription id, the show's
+original feed URL, or the show title:
 
 ```bash
 curl -X POST http://localhost:8000/api/channels \

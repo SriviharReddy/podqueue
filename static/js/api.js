@@ -52,6 +52,10 @@ export const API = {
         return await request('/api/channels');
     },
     
+    async getCastriaSubscriptions() {
+        return await request('/api/castria/subscriptions');
+    },
+    
     async createChannel(id, url, limit, sponsorblock, check_interval_hours) {
         return await request('/api/channels', {
             method: 'POST',

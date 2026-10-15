@@ -8,6 +8,7 @@ from podqueue.config import settings
 from podqueue.core.channels import Channel, load_channels, add_channel, update_channel, delete_channel
 from podqueue.api.auth import require_auth
 from podqueue.core.downloader import resolve_channel_url
+from podqueue.core.castria import CastriaClient, CastriaError
 
 router = APIRouter(prefix="/api")
 logger = logging.getLogger("podqueue")
@@ -90,6 +91,39 @@ async def create_channel(request: Request, data: ChannelCreate):
         )
         
     return {"status": "ok", "channel": new_chan}
+
+@router.get("/castria/subscriptions")
+async def list_castria_subscriptions(request: Request):
+    """List the Castria shows on the configured account (for the UI picker)."""
+    require_auth(request)
+
+    if not settings.CASTRIA_EMAIL or not settings.CASTRIA_PASSWORD:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Castria is not configured. Set CASTRIA_EMAIL and CASTRIA_PASSWORD in .env and restart.",
+        )
+
+    def _fetch():
+        return CastriaClient().get_subscriptions()
+
+    try:
+        subscriptions = await asyncio.to_thread(_fetch)
+    except CastriaError as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Castria request failed: {e}",
+        )
+
+    return [
+        {
+            "id": sub.get("id"),
+            "title": sub.get("title"),
+            "url": sub.get("url"),
+            "imageUrl": sub.get("imageUrl"),
+            "episodeCount": sub.get("episodeCount"),
+        }
+        for sub in subscriptions
+    ]
 
 @router.put("/channels/{channel_id}")
 async def edit_channel(request: Request, channel_id: str, data: ChannelUpdate):

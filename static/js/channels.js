@@ -8,11 +8,71 @@ const addChannelForm = document.getElementById('add-channel-form');
 const editChannelModal = document.getElementById('edit-channel-modal');
 const editChannelForm = document.getElementById('edit-channel-form');
 
+const castriaSelect = document.getElementById('castria-show-select');
+const loadCastriaBtn = document.getElementById('load-castria-btn');
+
+const CASTRIA_EMPTY_OPTION = '<option value="">Press “Load” to fetch your Castria shows</option>';
+
+function isCastriaUrl(url) {
+    return typeof url === 'string' && url.toLowerCase().startsWith('castria:');
+}
+
+function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, ch => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[ch]));
+}
+
+function toFeedId(title) {
+    // Must satisfy the backend's ^[a-zA-Z0-9_-]+$ pattern
+    return String(title || '').replace(/[^a-zA-Z0-9]+/g, '').slice(0, 40);
+}
+
+function resetCastriaPicker() {
+    if (!castriaSelect) return;
+    castriaSelect.innerHTML = CASTRIA_EMPTY_OPTION;
+    castriaSelect.disabled = true;
+}
+
 export function initChannels() {
     addChannelBtn.addEventListener('click', () => {
         addChannelForm.reset();
+        resetCastriaPicker();
         addChannelModal.classList.add('active');
     });
+
+    if (loadCastriaBtn && castriaSelect) {
+        loadCastriaBtn.addEventListener('click', async () => {
+            const originalText = loadCastriaBtn.textContent;
+            loadCastriaBtn.disabled = true;
+            loadCastriaBtn.textContent = 'Loading…';
+            try {
+                const shows = await API.getCastriaSubscriptions();
+                if (!shows.length) {
+                    castriaSelect.innerHTML = '<option value="">No Castria shows found</option>';
+                } else {
+                    castriaSelect.innerHTML = '<option value="">Select a Castria show…</option>' +
+                        shows.map(s => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.title || s.id)}</option>`).join('');
+                }
+                castriaSelect.disabled = false;
+            } catch (err) {
+                resetCastriaPicker();
+                alert(`Could not load Castria shows: ${err.message}`);
+            } finally {
+                loadCastriaBtn.disabled = false;
+                loadCastriaBtn.textContent = originalText;
+            }
+        });
+
+        castriaSelect.addEventListener('change', () => {
+            if (!castriaSelect.value) return;
+            document.getElementById('add-chan-url').value = `castria:${castriaSelect.value}`;
+            const idField = document.getElementById('add-chan-id');
+            if (!idField.value.trim()) {
+                idField.value = toFeedId(castriaSelect.options[castriaSelect.selectedIndex].textContent);
+            }
+        });
+    }
     
     addChannelForm.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -104,8 +164,16 @@ export async function loadChannelsList() {
                 ? new Date(c.next_check * 1000).toLocaleString() 
                 : 'Pending';
                 
+            const isCastria = isCastriaUrl(c.url);
             const isPawchive = c.url && c.url.toLowerCase().includes('pawchive.');
-            const icon = isPawchive ? '📻' : '📺';
+            const icon = isCastria ? '🎧' : isPawchive ? '📻' : '📺';
+
+            const sourceMeta = isCastria
+                ? `<span style="word-break: break-all;"><strong>Source:</strong> Castria · <code>${escapeHtml(c.url.replace(/^castria:/i, ''))}</code></span>`
+                : `<span style="word-break: break-all;"><strong>Source URL:</strong> <a href="${c.url}" target="_blank">${c.url}</a></span>`;
+            const removalMeta = isCastria
+                ? `<span><strong>Ads:</strong> Removed (Castria aligner)</span>`
+                : `<span><strong>SponsorBlock:</strong> ${c.sponsorblock ? 'Remove Sponsors' : 'Disabled'}</span>`;
             
             return `
                 <div class="card">
@@ -114,9 +182,9 @@ export async function loadChannelsList() {
                         <span class="badge ${c.audio_count > 0 ? 'badge-success' : ''}">${c.audio_count} eps</span>
                     </div>
                     <div class="card-meta">
-                        <span style="word-break: break-all;"><strong>Source URL:</strong> <a href="${c.url}" target="_blank">${c.url}</a></span>
+                        ${sourceMeta}
                         <span><strong>Keep Limit:</strong> Newer ${c.limit}</span>
-                        <span><strong>SponsorBlock:</strong> ${c.sponsorblock ? 'Remove Sponsors' : 'Disabled'}</span>
+                        ${removalMeta}
                         <span><strong>Interval:</strong> Every ${c.check_interval_hours} hr(s)</span>
                         <span><strong>Last Checked:</strong> ${lastCheckText}</span>
                         <span><strong>Next Check:</strong> ${nextCheckText}</span>

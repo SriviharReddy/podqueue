@@ -155,8 +155,21 @@
                     <input type="text" id="add-chan-id" class="form-control" placeholder="e.g. LexFridman" required pattern="^[a-zA-Z0-9_-]+$">
                 </div>
                 <div class="form-group">
-                    <label for="add-chan-url" class="form-label">YouTube or Pawchive URL</label>
-                    <input type="url" id="add-chan-url" class="form-control" placeholder="e.g. YouTube or Pawchive creator page" required>
+                    <label for="add-chan-url" class="form-label">Source URL</label>
+                    <input type="text" id="add-chan-url" class="form-control" placeholder="YouTube / Pawchive URL, or castria:<id>" required>
+                    <div style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.4rem; line-height: 1.5;">
+                        YouTube channel/playlist, Pawchive creator page, or a Castria show
+                        (<code>castria:&lt;subscriptionId&gt;</code>) — Castria episodes have their ads removed automatically.
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="castria-show-select" class="form-label">…or pick an ad-free Castria show</label>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <select id="castria-show-select" class="form-control" style="flex-grow: 1;" disabled>
+                            <option value="">Press “Load” to fetch your Castria shows</option>
+                        </select>
+                        <button type="button" id="load-castria-btn" class="btn btn-sm">Load</button>
+                    </div>
                 </div>
                 <div class="form-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                     <div>
@@ -193,7 +206,7 @@
                 <input type="hidden" id="edit-chan-id">
                 <div class="form-group">
                     <label for="edit-chan-url" class="form-label">Source URL</label>
-                    <input type="url" id="edit-chan-url" class="form-control" readonly disabled>
+                    <input type="text" id="edit-chan-url" class="form-control" readonly disabled>
                 </div>
                 <div class="form-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                     <div>
