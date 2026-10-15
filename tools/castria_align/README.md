@@ -56,15 +56,20 @@ run it by hand.
 
 ## Limits
 
-- **Whole-file only, and at most 7200 s (2 h).** `FingerprintSession` carries an
+- **One pass covers at most 7200 s (2 h).** `FingerprintSession` carries an
   internal guard (it labels it *"bug-543"*) that aborts once the accumulated
   **decoded** duration passes 7200 s — `79380000` samples at 11 025 Hz — with
-  `refusing to continue the whole-file DSP path`. Longer episodes cannot be
-  aligned through this harness at all.
+  `refusing to continue the whole-file DSP path`. The guard is *per session*, so
+  longer episodes are still aligned by splitting the file into sub-ceiling
+  chunks and running one session per chunk (`run_aligner_chunked` in
+  `podqueue/utils/castria_align.py`); the per-chunk gaps are shifted onto the
+  original timeline and stitched back together. That reproduces a whole-file
+  pass — verified against a known inserted span in `tests/test_castria.py`.
 - **Memory grows with duration, not with file size.** The session accumulates
-  fingerprint state across the whole episode, so a 2 h file needs a few hundred
+  fingerprint state across the whole episode, so a 2 h chunk needs a few hundred
   MB of Node/wasm heap. The range fetcher itself only ever holds one chunk, but
   that does not bound total usage. On a small host, run it `nice`d and with swap
-  available.
+  available — chunking also caps the peak, since no single session sees the whole
+  file.
 
 Requires Node.js (tested on v20/v24).

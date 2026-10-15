@@ -178,13 +178,20 @@ The feed then appears at `/feeds/some-show.xml`. See
 `docs/superpowers/specs/2026-10-15-castria-adskip-integration-design.md` for the
 full design, and `tools/castria_align/README.md` for the engine's provenance.
 
-### Known limitation: episodes longer than 2 hours
+### Episodes longer than 2 hours
 
-Castria's engine refuses to align more than **7200 s (2 h)** of audio in one pass
-(its internal *"bug-543"* guard). Episodes past that limit are published
-unchanged — `info.json` records `castria.adSource == "too-long"` — and are still
-archived so they are not re-downloaded. A shared Castria skip-map (checked
-first, and not duration-limited) will still be used if one exists for the file.
+Castria's engine refuses to align more than **7200 s (2 h)** of *decoded* audio in
+a single pass (its internal *"bug-543"* guard). Rather than skipping such
+episodes, PodQueue splits them into chunks of at most
+`CASTRIA_ALIGN_CHUNK_SECONDS` (default 6600 s), aligns each chunk against the same
+show fingerprint, and stitches the gaps back onto the original timeline. The
+guard is per session, so no single pass trips it, and the stitched result matches
+a whole-file pass.
+
+A shared Castria skip-map is still checked first (it has no duration limit and is
+free). Set `CASTRIA_ALIGN_CHUNKING_ENABLED=false` to skip long episodes instead
+(`info.json` then records `castria.adSource == "too-long"`); `info.json` records
+`castria.alignChunks` for chunked runs.
 
 > **Note:** PodQueue feeds are public by default. Re-publishing ad-stripped audio
 > of a third-party show is redistribution - keep the feed private if it is only

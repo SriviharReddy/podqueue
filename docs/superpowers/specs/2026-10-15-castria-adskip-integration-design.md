@@ -115,15 +115,30 @@ graph TD
   fixed 1 h cap silently published a 2.8 h episode with its ads).
 - The Node process runs under `nice -n 10` so one long alignment cannot starve
   the web UI or SSH on a single-box host.
-- **The engine only aligns up to 7200 s (2 h) of decoded audio.** It carries an
-  internal guard (its own name: *"bug-543"*) that aborts the whole-file DSP path
-  once the accumulated decoded duration passes that ceiling — verified against a
-  10 113 s episode, which fails with
-  `bug-543 guard tripped … exceeded the 7200s safe ceiling`. Episodes longer
-  than `CASTRIA_MAX_ALIGN_DURATION_SECONDS` are therefore skipped *before* the
-  aligner (`info.json` records `adSource == "too-long"`) rather than spending a
-  full decode to hit the guard. The crowd skip-map is still tried first, since
-  it has no duration limit.
+- **The engine aligns up to 7200 s (2 h) of decoded audio *per pass*.** It carries
+  an internal guard (its own name: *"bug-543"*) that aborts the whole-file DSP
+  path once the accumulated decoded duration passes that ceiling — verified
+  against a 10 113 s episode, which fails with
+  `bug-543 guard tripped … exceeded the 7200s safe ceiling`. The guard is per
+  `FingerprintSession`, so episodes past `CASTRIA_MAX_ALIGN_DURATION_SECONDS` are
+  split into `CASTRIA_ALIGN_CHUNK_SECONDS`-long pieces (default 6600 s), each
+  aligned in its own session against the same show fingerprint, and the gaps are
+  shifted onto the original timeline and stitched (`run_aligner_chunked`).
+
+  Why chunking is sound: the aligner marks a client region as an ad precisely
+  *because* it has no counterpart in the show fingerprint, so aligning a
+  mid-episode slice works the same way a whole-file pass does. This was verified
+  two ways — a chunked run of a short episode reproduces its whole-file gaps, and
+  a known 60 s span inserted across a chunk boundary was found as
+  `168.8–230.0` (whole file) and `169.6–229.96` (chunked). The crowd skip-map is
+  still tried first, since it is free and has no duration limit.
+
+  (The Castria app itself does something related for these episodes but not via
+  this engine: its on-device DSP is pre-filtered at 72 MB, so a >2 h episode falls
+  through to on-phone Whisper transcription →
+  `POST /api/detect/transcript-ads`. We keep to the vendored engine instead of
+  adding an ASR dependency.)
+
 
 ### C. Router — `podqueue/core/downloader.py`
 
@@ -134,7 +149,9 @@ graph TD
 
 - `CASTRIA_BASE_URL`, `CASTRIA_EMAIL`, `CASTRIA_PASSWORD`,
   `CASTRIA_APP_VERSION`, `CASTRIA_NODE_BIN`, `CASTRIA_ALIGN_ENABLED`,
-  `CASTRIA_ALIGN_TIMEOUT_SECONDS`, `CASTRIA_ALLOW_TIMESTAMP_FALLBACK`.
+  `CASTRIA_ALIGN_TIMEOUT_SECONDS`, `CASTRIA_ALIGN_CHUNK_SECONDS`,
+  `CASTRIA_ALIGN_CHUNKING_ENABLED`, `CASTRIA_MAX_ALIGN_DURATION_SECONDS`,
+  `CASTRIA_ALLOW_TIMESTAMP_FALLBACK`.
 - `CASTRIA_ALIGN_TOOL` derived from `ROOT_DIR / tools / castria_align / align.mjs`.
 
 ### E. RSS / cleanup
@@ -212,8 +229,12 @@ curl -X POST http://localhost:8000/api/channels \
   out), the episode is published unchanged and `info.json` records
   `castria.adSource == "failed"`, rather than reporting a misleading "no ads
   found". The same applies to `adSource == "too-long"` for episodes past the
-  engine's 2 h ceiling.
-- **Episodes over 2 h keep their ads** — a hard limit of the vendored engine, not
-  of this integration. Such episodes are still published (and archived) so they
-  are never re-downloaded; if another Castria client later submits a skip-map
-  for the same file hash, a subsequent run will use it.
+  engine's 2 h ceiling when chunking is disabled.
+- **Episodes over 2 h are chunked, not skipped** — the engine's 7200 s guard is
+  per session, so long episodes are aligned in pieces and stitched. This is the
+  same audio and the same engine; it just costs one decode per chunk (bounded
+  peak memory) and roughly the same total CPU as one pass over the whole file.
+  Only with `CASTRIA_ALIGN_CHUNKING_ENABLED=false` do they keep their ads; such
+  episodes are still published (and archived) so they are never re-downloaded,
+  and a shared skip-map for the same file hash is used if one appears later.
+

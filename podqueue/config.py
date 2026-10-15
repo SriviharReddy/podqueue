@@ -43,9 +43,17 @@ class Settings:
         self.CASTRIA_ALIGN_TIMEOUT_SECONDS = int(os.getenv("CASTRIA_ALIGN_TIMEOUT_SECONDS", "3600"))
         self.CASTRIA_ALIGN_ENABLED = os.getenv("CASTRIA_ALIGN_ENABLED", "true").strip().lower() not in ("0", "false", "no", "off")
         # Castria's engine refuses to align more than 7200s (2h) of decoded audio
-        # in one pass (its internal "bug-543" guard), so episodes longer than
-        # this are not worth a full decode - the aligner is skipped for them.
+        # in a single fingerprint session (its internal "bug-543" guard). Longer
+        # episodes are handled by aligning them in chunks (see below) rather than
+        # being skipped - the guard is per session, so each chunk stays under it.
         self.CASTRIA_MAX_ALIGN_DURATION_SECONDS = int(os.getenv("CASTRIA_MAX_ALIGN_DURATION_SECONDS", "7200"))
+        # Audio is split into pieces of at most this many seconds for a single
+        # alignment pass. Kept well under the engine ceiling for margin; files
+        # longer than this get aligned chunk by chunk and the gaps stitched.
+        self.CASTRIA_ALIGN_CHUNK_SECONDS = int(os.getenv("CASTRIA_ALIGN_CHUNK_SECONDS", "6600"))
+        # Set false to skip chunked alignment entirely: episodes past the engine
+        # ceiling then keep their ads ("too-long") instead of being split.
+        self.CASTRIA_ALIGN_CHUNKING_ENABLED = os.getenv("CASTRIA_ALIGN_CHUNKING_ENABLED", "true").strip().lower() not in ("0", "false", "no", "off")
         # When alignment is impossible, optionally fall back to the server's raw
         # adSegments. These are timed against Castria's copy, NOT ours, so they
         # can be wrong under dynamic ad insertion - hence off by default.

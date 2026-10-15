@@ -331,7 +331,7 @@ def test_resolve_gaps_reports_alignment_failure(tmp_path):
     with patch.object(settings, "CASTRIA_ALIGN_ENABLED", True), \
          patch.object(settings, "CASTRIA_ALLOW_TIMESTAMP_FALLBACK", False), \
          patch("podqueue.core.castria.run_aligner", side_effect=AlignerError("aligner timed out after 3600s")):
-        gaps, source = _resolve_gaps(_StubClient(), episode, audio)
+        gaps, source, _meta = _resolve_gaps(_StubClient(), episode, audio)
 
     assert gaps == []
     assert source == "failed"
@@ -346,14 +346,14 @@ def test_resolve_gaps_reports_empty_result_as_success(tmp_path):
 
     with patch.object(settings, "CASTRIA_ALIGN_ENABLED", True), \
          patch("podqueue.core.castria.run_aligner", return_value=[]):
-        gaps, source = _resolve_gaps(_StubClient(), episode, audio)
+        gaps, source, _meta = _resolve_gaps(_StubClient(), episode, audio)
 
     assert gaps == []
     assert source == "alignment"
 
 
 # --------------------------------------------------------------------------- #
-# The engine's whole-file duration ceiling ("bug-543")
+# The engine's per-session duration ceiling ("bug-543") and chunked alignment
 # --------------------------------------------------------------------------- #
 
 def test_exceeds_align_ceiling():
@@ -367,7 +367,50 @@ def test_exceeds_align_ceiling():
         assert exceeds_align_ceiling(0) is False          # unknown duration must not block
 
 
-def test_resolve_gaps_skips_aligner_for_over_long_episodes(tmp_path):
+def test_chunk_count():
+    from podqueue.utils.castria_align import chunk_count
+
+    with patch.object(settings, "CASTRIA_MAX_ALIGN_DURATION_SECONDS", 7200), \
+         patch.object(settings, "CASTRIA_ALIGN_CHUNK_SECONDS", 6600):
+        assert chunk_count(0) == 1        # unknown duration -> one pass
+        assert chunk_count(600) == 1      # short episode -> one pass
+        assert chunk_count(6600) == 1     # exactly one chunk
+        assert chunk_count(6600.5) == 2
+        assert chunk_count(10113) == 2    # the 2.8h episode: 6600 + 3513
+        assert chunk_count(13201) == 3
+
+
+def test_chunk_count_clamps_to_engine_ceiling():
+    """A chunk larger than the engine's guard would just trip it, so it is clamped."""
+    from podqueue.utils.castria_align import align_chunk_seconds
+
+    with patch.object(settings, "CASTRIA_MAX_ALIGN_DURATION_SECONDS", 7200), \
+         patch.object(settings, "CASTRIA_ALIGN_CHUNK_SECONDS", 99999):
+        assert align_chunk_seconds() == 7200
+
+    with patch.object(settings, "CASTRIA_MAX_ALIGN_DURATION_SECONDS", 7200), \
+         patch.object(settings, "CASTRIA_ALIGN_CHUNK_SECONDS", 0):
+        assert align_chunk_seconds() == 7200
+
+
+def test_bridge_ranges_rejoins_chunk_boundary_gaps():
+    """A gap spanning a chunk boundary arrives as two pieces; they must rejoin."""
+    from podqueue.utils.castria_align import bridge_ranges
+
+    # two halves of one ad, split at the 200s boundary (0.13s of encoder padding)
+    split = [(169.6, 199.88), (200.01, 229.96)]
+    assert bridge_ranges(split) == [(169.6, 229.96)]
+
+    # genuinely separate ads must stay separate
+    apart = [(10.0, 40.0), (300.0, 340.0)]
+    assert bridge_ranges(apart) == [(10.0, 40.0), (300.0, 340.0)]
+
+    # overlapping/unsorted input is normalised
+    assert bridge_ranges([(30.0, 50.0), (10.0, 35.0)]) == [(10.0, 50.0)]
+
+
+def test_resolve_gaps_chunks_alignment_for_over_long_episodes(tmp_path):
+    """Over-ceiling episodes are aligned in chunks rather than skipped."""
     from podqueue.core.castria import _resolve_gaps
 
     audio = tmp_path / "long.mp3"
@@ -375,14 +418,60 @@ def test_resolve_gaps_skips_aligner_for_over_long_episodes(tmp_path):
     episode = {"id": "ep-long", "showFingerprintAvailable": True}
 
     with patch.object(settings, "CASTRIA_ALIGN_ENABLED", True), \
+         patch.object(settings, "CASTRIA_ALIGN_CHUNKING_ENABLED", True), \
+         patch.object(settings, "CASTRIA_MAX_ALIGN_DURATION_SECONDS", 7200), \
+         patch.object(settings, "CASTRIA_ALIGN_CHUNK_SECONDS", 6600), \
+         patch("podqueue.core.castria.get_audio_duration_seconds", return_value=10113.0), \
+         patch("podqueue.core.castria.run_aligner") as m_single, \
+         patch("podqueue.core.castria.run_aligner_chunked", return_value=[(0.6, 160.4)]) as m_chunked:
+        gaps, source, meta = _resolve_gaps(_StubClient(), episode, audio)
+
+    assert gaps == [(0.6, 160.4)]
+    assert source == "alignment"
+    assert meta["alignChunks"] == 2
+    m_chunked.assert_called_once()
+    m_single.assert_not_called()
+
+
+def test_resolve_gaps_uses_single_pass_below_chunk_size(tmp_path):
+    from podqueue.core.castria import _resolve_gaps
+
+    audio = tmp_path / "short.mp3"
+    audio.write_bytes(b"x")
+    episode = {"id": "ep-short", "showFingerprintAvailable": True}
+
+    with patch.object(settings, "CASTRIA_ALIGN_ENABLED", True), \
+         patch.object(settings, "CASTRIA_ALIGN_CHUNK_SECONDS", 6600), \
+         patch("podqueue.core.castria.get_audio_duration_seconds", return_value=600.0), \
+         patch("podqueue.core.castria.run_aligner", return_value=[(5.0, 40.0)]) as m_single, \
+         patch("podqueue.core.castria.run_aligner_chunked") as m_chunked:
+        gaps, source, meta = _resolve_gaps(_StubClient(), episode, audio)
+
+    assert source == "alignment"
+    assert meta["alignChunks"] == 1
+    m_single.assert_called_once()
+    m_chunked.assert_not_called()
+
+
+def test_resolve_gaps_reports_too_long_when_chunking_disabled(tmp_path):
+    from podqueue.core.castria import _resolve_gaps
+
+    audio = tmp_path / "long.mp3"
+    audio.write_bytes(b"x")
+    episode = {"id": "ep-long", "showFingerprintAvailable": True}
+
+    with patch.object(settings, "CASTRIA_ALIGN_ENABLED", True), \
+         patch.object(settings, "CASTRIA_ALIGN_CHUNKING_ENABLED", False), \
          patch.object(settings, "CASTRIA_MAX_ALIGN_DURATION_SECONDS", 7200), \
          patch("podqueue.core.castria.get_audio_duration_seconds", return_value=10113.0), \
-         patch("podqueue.core.castria.run_aligner") as m_align:
-        gaps, source = _resolve_gaps(_StubClient(), episode, audio)
+         patch("podqueue.core.castria.run_aligner") as m_single, \
+         patch("podqueue.core.castria.run_aligner_chunked") as m_chunked:
+        gaps, source, _meta = _resolve_gaps(_StubClient(), episode, audio)
 
     assert gaps == []
     assert source == "too-long"
-    m_align.assert_not_called()
+    m_single.assert_not_called()
+    m_chunked.assert_not_called()
 
 
 def test_resolve_gaps_still_uses_crowd_skipmap_for_over_long_episodes(tmp_path):
@@ -400,7 +489,7 @@ def test_resolve_gaps_still_uses_crowd_skipmap_for_over_long_episodes(tmp_path):
     with patch.object(settings, "CASTRIA_MAX_ALIGN_DURATION_SECONDS", 7200), \
          patch("podqueue.core.castria.get_audio_duration_seconds", return_value=10113.0), \
          patch("podqueue.core.castria.run_aligner") as m_align:
-        gaps, source = _resolve_gaps(SkipMapClient(), episode, audio)
+        gaps, source, _meta = _resolve_gaps(SkipMapClient(), episode, audio)
 
     assert gaps == [(0.0, 30.0), (500.0, 560.0)]
     assert source == "skipplan"
