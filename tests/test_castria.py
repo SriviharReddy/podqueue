@@ -289,3 +289,64 @@ async def test_list_castria_subscriptions_surfaces_api_errors():
         with pytest.raises(HTTPException) as exc:
             await list_castria_subscriptions(_authed_request())
     assert exc.value.status_code == 502
+
+
+# --------------------------------------------------------------------------- #
+# Timeout scaling and failure reporting
+# --------------------------------------------------------------------------- #
+
+def test_resolve_timeout_scales_with_audio_length():
+    from podqueue.utils.castria_align import ALIGN_TIMEOUT_PER_AUDIO_SECOND, resolve_timeout
+
+    with patch("podqueue.utils.castria_align.get_audio_duration_seconds", return_value=10000):
+        assert resolve_timeout(Path("x.mp3"), configured=3600) == int(10000 * ALIGN_TIMEOUT_PER_AUDIO_SECOND)
+
+
+def test_resolve_timeout_keeps_floor_for_short_audio():
+    from podqueue.utils.castria_align import resolve_timeout
+
+    with patch("podqueue.utils.castria_align.get_audio_duration_seconds", return_value=120):
+        assert resolve_timeout(Path("x.mp3"), configured=3600) == 3600
+
+
+class _StubClient:
+    def get_skipplan(self, *args, **kwargs):
+        return None
+
+    def get_fingerprint(self, *args, **kwargs):
+        return "FP"
+
+    def get_episode(self, *args, **kwargs):
+        return {}
+
+
+def test_resolve_gaps_reports_alignment_failure(tmp_path):
+    from podqueue.core.castria import _resolve_gaps
+    from podqueue.utils.castria_align import AlignerError
+
+    audio = tmp_path / "a.mp3"
+    audio.write_bytes(b"x")
+    episode = {"id": "ep-x", "showFingerprintAvailable": True}
+
+    with patch.object(settings, "CASTRIA_ALIGN_ENABLED", True), \
+         patch.object(settings, "CASTRIA_ALLOW_TIMESTAMP_FALLBACK", False), \
+         patch("podqueue.core.castria.run_aligner", side_effect=AlignerError("aligner timed out after 3600s")):
+        gaps, source = _resolve_gaps(_StubClient(), episode, audio)
+
+    assert gaps == []
+    assert source == "failed"
+
+
+def test_resolve_gaps_reports_empty_result_as_success(tmp_path):
+    from podqueue.core.castria import _resolve_gaps
+
+    audio = tmp_path / "a.mp3"
+    audio.write_bytes(b"x")
+    episode = {"id": "ep-y", "showFingerprintAvailable": True}
+
+    with patch.object(settings, "CASTRIA_ALIGN_ENABLED", True), \
+         patch("podqueue.core.castria.run_aligner", return_value=[]):
+        gaps, source = _resolve_gaps(_StubClient(), episode, audio)
+
+    assert gaps == []
+    assert source == "alignment"

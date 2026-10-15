@@ -381,8 +381,12 @@ def _episode_ready(episode: dict) -> bool:
 
 def _resolve_gaps(client: CastriaClient, episode: dict, audio_path: Path) -> Tuple[List[Tuple[float, float]], str]:
     """Return ``(gaps, source)`` where source is one of
-    ``skipplan|alignment|adSegments|none``."""
+    ``skipplan|alignment|adSegments|failed|none``.
+
+    ``failed`` means alignment was attempted but did not succeed (e.g. the
+    engine timed out), which is not the same as ``none`` (genuinely no ads)."""
     ep_id = episode.get("id")
+    alignment_failed = False
 
     # 1. free exact hit from the crowd skip-map cache, keyed by our file hash
     try:
@@ -403,8 +407,10 @@ def _resolve_gaps(client: CastriaClient, episode: dict, audio_path: Path) -> Tup
                 gaps = run_aligner(audio_path, fingerprint)
                 job_logger.info(f"[{ep_id}] Alignment produced {len(gaps)} gap(s)")
                 return gaps, "alignment"
+            alignment_failed = True
             job_logger.warning(f"[{ep_id}] server reported a fingerprint but none was returned")
         except (AlignerError, CastriaError) as e:
+            alignment_failed = True
             job_logger.warning(f"[{ep_id}] Alignment failed: {e}")
 
     # 3. optional, inaccurate fallback
@@ -423,7 +429,7 @@ def _resolve_gaps(client: CastriaClient, episode: dict, audio_path: Path) -> Tup
         except CastriaError as e:
             job_logger.warning(f"[{ep_id}] adSegments fallback failed: {e}")
 
-    return [], "none"
+    return [], ("failed" if alignment_failed else "none")
 
 
 def _write_info_json(
@@ -520,6 +526,10 @@ def _process_episode(client: CastriaClient, channel: Channel, episode: dict, dow
                 if cut_path.exists():
                     cut_path.unlink()
                 job_logger.warning(f"[{ep_id}] Ad removal produced no output; keeping original audio")
+        elif source == "failed":
+            job_logger.warning(
+                f"[{ep_id}] Could not determine ad ranges; publishing unchanged (ads may still be present)"
+            )
         else:
             job_logger.info(f"[{ep_id}] No ad gaps found ({source}); publishing unchanged")
 

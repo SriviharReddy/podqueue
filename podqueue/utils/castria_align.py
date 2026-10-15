@@ -8,6 +8,7 @@ exactly what the Castria client would compute for the same file.
 
 import json
 import logging
+import os
 import shutil
 import subprocess
 import tempfile
@@ -15,6 +16,7 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 from podqueue.config import settings
+from podqueue.utils.media import get_audio_duration_seconds
 
 logger = logging.getLogger("podqueue")
 job_logger = logging.getLogger("podqueue_job")
@@ -24,10 +26,26 @@ class AlignerError(RuntimeError):
     """Raised when the Castria aligner cannot be run or returns no result."""
 
 
+# Alignment is roughly single-digit multiples of realtime on a loaded host, so
+# a fixed timeout starves long episodes. We allow this many seconds of wall time
+# per second of audio, on top of the configured floor.
+ALIGN_TIMEOUT_PER_AUDIO_SECOND = 3.0
+
+
 def _node_binary() -> Optional[str]:
     return shutil.which(settings.CASTRIA_NODE_BIN) or (
         settings.CASTRIA_NODE_BIN if Path(settings.CASTRIA_NODE_BIN).exists() else None
     )
+
+
+def resolve_timeout(audio_path: Path, configured: Optional[int] = None) -> int:
+    """Wall-clock budget for one alignment, scaled to the file's length."""
+    base = configured or settings.CASTRIA_ALIGN_TIMEOUT_SECONDS
+    duration = get_audio_duration_seconds(audio_path)
+    if duration:
+        base = max(base, int(duration * ALIGN_TIMEOUT_PER_AUDIO_SECOND))
+    return base
+
 
 
 def aligner_available() -> bool:
@@ -64,7 +82,8 @@ def run_aligner(
     if not show_fingerprint_b64:
         raise AlignerError("empty show fingerprint")
 
-    timeout = timeout or settings.CASTRIA_ALIGN_TIMEOUT_SECONDS
+    if timeout is None:
+        timeout = resolve_timeout(audio_path)
 
     fp_file = None
     try:
@@ -73,6 +92,10 @@ def run_aligner(
             fp_file = Path(fh.name)
 
         cmd = [str(node), str(tool), str(audio_path), str(fp_file)]
+        # Drop CPU priority so a long alignment on a small host cannot starve
+        # the web UI / SSH (the engine pegs one core for minutes at a time).
+        if os.name != "nt" and shutil.which("nice"):
+            cmd = ["nice", "-n", "10", *cmd]
         job_logger.info(f"Running Castria aligner on {audio_path.name} (this can take a few minutes)...")
         proc = subprocess.run(
             cmd,
