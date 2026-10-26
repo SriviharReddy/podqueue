@@ -15,6 +15,21 @@ from podqueue.core.channels import Channel
 logger = logging.getLogger("podqueue")
 job_logger = logging.getLogger("podqueue_job")
 
+# Pawchive's file host (file.pawchive.pw) enforces its own bot policy: requests
+# must use an identifiable user agent, stay under 1 request/second, and must NOT
+# pretend to be a browser ("pretending to be a browser will result in a block").
+# Violations return 403 with a plain-text explanation.
+_last_pawchive_request = 0.0
+
+def _pawchive_throttle():
+    """Rate-limit file requests to stay within pawchive's 1 request/second policy."""
+    global _last_pawchive_request
+    now = time.monotonic()
+    wait = 1.1 - (now - _last_pawchive_request)
+    if wait > 0:
+        time.sleep(wait)
+    _last_pawchive_request = time.monotonic()
+
 def is_pawchive_url(url: str) -> bool:
     return "pawchive." in url.lower()
 
@@ -203,9 +218,10 @@ def run_pawchive_download(channel: Channel, force: bool = False):
             proxies = {"http": settings.YTDLP_PROXY, "https": settings.YTDLP_PROXY}
 
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            "User-Agent": f"PodQueue/1.0 (podcast RSS server; +{settings.BASE_URL})"
         }
 
+        failed_downloads = False
         for post_id, audio_url, audio_name, audio_ext, meta in posts_to_download:
             dest_path = download_dir / f"{post_id}.{audio_ext}"
             temp_path = download_dir / f"{post_id}.temp.{audio_ext}"
@@ -230,6 +246,7 @@ def run_pawchive_download(channel: Channel, force: bool = False):
                         job_logger.info(f"Starting fresh download (attempt {attempt}/{max_retries})...")
                         
                     try:
+                        _pawchive_throttle()
                         response = requests.get(audio_url, headers=headers_copy, proxies=proxies, stream=True, timeout=30)
                         
                         if downloaded_bytes > 0:
@@ -241,6 +258,7 @@ def run_pawchive_download(channel: Channel, force: bool = False):
                                 job_logger.warning(f"Server rejected Range request with code {response.status_code}. Restarting download...")
                                 temp_path.unlink(missing_ok=True)
                                 downloaded_bytes = 0
+                                _pawchive_throttle()
                                 response = requests.get(audio_url, headers=headers, proxies=proxies, stream=True, timeout=30)
                         
                         response.raise_for_status()
@@ -294,16 +312,21 @@ def run_pawchive_download(channel: Channel, force: bool = False):
                     job_logger.info(f"Successfully processed post: {post_id}")
             except Exception as e:
                 job_logger.error(f"Error downloading post {post_id}: {e}")
+                failed_downloads = True
                 if temp_path.exists():
                     temp_path.unlink()
 
     cleanup_leftovers(download_dir)
     cleanup_old_episodes(download_dir, archive_file, channel.limit)
 
-    # Save check status
-    try:
-        last_check_file.write_text(str(current_time))
-    except Exception as e:
-        job_logger.error(f"Error writing last check file for {channel.id}: {e}")
+    # Only mark the channel as checked when every download succeeded; otherwise
+    # retry on the next sync cycle instead of waiting a full check interval.
+    if not failed_downloads:
+        try:
+            last_check_file.write_text(str(current_time))
+        except Exception as e:
+            job_logger.error(f"Error writing last check file for {channel.id}: {e}")
+    else:
+        job_logger.warning(f"Skipped updating last check for {channel.id} due to failed downloads; will retry next sync.")
 
     job_logger.info(f"Finished Pawchive sync for {channel.id}.")
