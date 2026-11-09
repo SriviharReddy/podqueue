@@ -94,6 +94,7 @@ def _extract_metadata(item):
 def run_pawchive_download(channel: Channel, force: bool = False):
     from podqueue.core.downloader import cleanup_old_episodes, cleanup_leftovers
     job_logger.info(f"Starting Pawchive podcast sync for {channel.id}...")
+    failed_downloads = False
     
     # Check interval
     last_check_file = settings.STATE_DIR / f"{channel.id}.last_check"
@@ -221,7 +222,6 @@ def run_pawchive_download(channel: Channel, force: bool = False):
             "User-Agent": f"PodQueue/1.0 (podcast RSS server; +{settings.BASE_URL})"
         }
 
-        failed_downloads = False
         for post_id, audio_url, audio_name, audio_ext, meta in posts_to_download:
             dest_path = download_dir / f"{post_id}.{audio_ext}"
             temp_path = download_dir / f"{post_id}.temp.{audio_ext}"
