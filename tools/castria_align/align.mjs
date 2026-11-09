@@ -99,9 +99,9 @@ function makeLocalRangeFetcher(audioPath) {
     const start = Math.max(0, offset | 0);
     const end = Math.min(start + Math.max(0, length | 0), totalLen);
     const n = Math.max(0, end - start);
-    const buf = Buffer.allocUnsafe(n);
-    const read = n === 0 ? 0 : fs.readSync(fd, buf, 0, n, start);
-    return new Uint8Array(buf.buffer, buf.byteOffset, read);
+    const arr = new Uint8Array(n);
+    const read = n === 0 ? 0 : fs.readSync(fd, arr, 0, n, start);
+    return arr.subarray(0, read);
   };
   return { fetchFn, totalLen, close };
 }

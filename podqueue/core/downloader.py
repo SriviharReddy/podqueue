@@ -152,7 +152,7 @@ def cleanup_old_episodes(download_dir: Path, archive_file: Path, limit: int):
 def cleanup_leftovers(download_dir: Path):
     """Clean up leftover temp files"""
     job_logger.info(f"[{download_dir.name}] Cleaning up leftover temp and mp4 files...")
-    for ext in ("*.mp4", "*.temp.mp4", "*.part", "*.ytdl", "*.temp.m4a", "*.temp.mp3"):
+    for ext in ("*.mp4", "*.temp.mp4", "*.part", "*.ytdl", "*.temp.m4a", "*.temp.mp3", "*.work.mp3", "*.cut.mp3"):
         for f in download_dir.glob(ext):
             if f.is_file() and not f.name.endswith(".info.json"):
                 try:

@@ -50,7 +50,8 @@ class Settings:
         # Audio is split into pieces of at most this many seconds for a single
         # alignment pass. Kept well under the engine ceiling for margin; files
         # longer than this get aligned chunk by chunk and the gaps stitched.
-        self.CASTRIA_ALIGN_CHUNK_SECONDS = int(os.getenv("CASTRIA_ALIGN_CHUNK_SECONDS", "6600"))
+        # Kept at 2400s (40m) so Node memory remains bounded (<100MB) on small hosts.
+        self.CASTRIA_ALIGN_CHUNK_SECONDS = int(os.getenv("CASTRIA_ALIGN_CHUNK_SECONDS", "2400"))
         # Set false to skip chunked alignment entirely: episodes past the engine
         # ceiling then keep their ads ("too-long") instead of being split.
         self.CASTRIA_ALIGN_CHUNKING_ENABLED = os.getenv("CASTRIA_ALIGN_CHUNKING_ENABLED", "true").strip().lower() not in ("0", "false", "no", "off")

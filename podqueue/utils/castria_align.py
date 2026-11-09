@@ -220,7 +220,7 @@ def run_aligner(
             fh.write(show_fingerprint_b64.strip())
             fp_file = Path(fh.name)
 
-        cmd = [str(node), str(tool), str(audio_path), str(fp_file)]
+        cmd = [str(node), "--max-old-space-size=256", str(tool), str(audio_path), str(fp_file)]
         # Drop CPU priority so a long alignment on a small host cannot starve
         # the web UI / SSH (the engine pegs one core for minutes at a time).
         if os.name != "nt" and shutil.which("nice"):

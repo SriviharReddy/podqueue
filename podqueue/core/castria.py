@@ -462,7 +462,7 @@ def _resolve_gaps(
         except CastriaError as e:
             job_logger.warning(f"[{ep_id}] adSegments fallback failed: {e}")
 
-    if too_long:
+    if too_long and not settings.CASTRIA_ALIGN_CHUNKING_ENABLED:
         return [], "too-long", meta
     return [], ("failed" if alignment_failed else "none"), meta
 
@@ -537,31 +537,41 @@ def _cache_channel_artwork(channel_id: str, subscription: dict, client: CastriaC
 def _process_episode(client: CastriaClient, channel: Channel, episode: dict, download_dir: Path, archive_file: Path) -> None:
     ep_id = episode["id"]
     temp_path = download_dir / f"{ep_id}.temp.mp3"
+    work_path = download_dir / f"{ep_id}.work.mp3"
     dest_path = download_dir / f"{ep_id}.mp3"
     cut_path = download_dir / f"{ep_id}.cut.mp3"
+    info_path = download_dir / f"{ep_id}.info.json"
 
     try:
         if not _episode_ready(episode):
             job_logger.info(f"[{ep_id}] Castria has not finished analysing this episode yet; will retry next run.")
             return
 
+        # If a prior run aborted mid-processing, dest_path may exist without info.json.
+        # Recover it into temp_path so _download_file can resume or verify it.
+        if dest_path.exists() and not info_path.exists():
+            job_logger.warning(
+                f"[{ep_id}] Found existing audio without info.json (aborted prior run); resuming download to verify."
+            )
+            dest_path.replace(temp_path)
+
         job_logger.info(f"[{ep_id}] Downloading '{episode.get('title')}'...")
         if not _download_file(episode["audioUrl"], temp_path, _download_headers()):
             job_logger.error(f"[{ep_id}] Download failed")
             return
-        temp_path.replace(dest_path)
-        original_bytes = dest_path.stat().st_size
+        temp_path.replace(work_path)
+        original_bytes = work_path.stat().st_size
 
-        gaps, source, meta = _resolve_gaps(client, episode, dest_path)
+        gaps, source, meta = _resolve_gaps(client, episode, work_path)
         removed_seconds = 0.0
+        final_audio = work_path
         if gaps:
-            removed_seconds = sum(e - s for s, e in merge_ranges(gaps, get_audio_duration_seconds(dest_path)))
+            removed_seconds = sum(e - s for s, e in merge_ranges(gaps, get_audio_duration_seconds(work_path)))
             job_logger.info(
                 f"[{ep_id}] Removing {len(gaps)} ad range(s) (~{removed_seconds:.0f}s) via {source}"
             )
-            if cut_audio_segments(dest_path, cut_path, gaps):
-                dest_path.unlink(missing_ok=True)
-                cut_path.replace(dest_path)
+            if cut_audio_segments(work_path, cut_path, gaps):
+                final_audio = cut_path
             else:
                 if cut_path.exists():
                     cut_path.unlink()
@@ -577,11 +587,15 @@ def _process_episode(client: CastriaClient, channel: Channel, episode: dict, dow
         else:
             job_logger.info(f"[{ep_id}] No ad gaps found ({source}); publishing unchanged")
 
-        duration = get_audio_duration(dest_path)
+        duration = get_audio_duration(final_audio)
         _write_info_json(
             download_dir, episode, channel, duration, gaps, source,
             removed_seconds, original_bytes, align_chunks=meta.get("alignChunks"),
         )
+
+        final_audio.replace(dest_path)
+        if work_path.exists() and work_path != dest_path:
+            work_path.unlink(missing_ok=True)
 
         with open(archive_file, "a", encoding="utf-8") as fh:
             fh.write(f"castria {ep_id}\n")
@@ -589,12 +603,11 @@ def _process_episode(client: CastriaClient, channel: Channel, episode: dict, dow
         job_logger.info(f"[{ep_id}] Done -> {dest_path.name} ({duration}s, -{removed_seconds:.0f}s ads)")
     except Exception as e:  # noqa: BLE001 - one bad episode must not abort the run
         job_logger.error(f"Error processing Castria episode {ep_id}: {e}")
-        for path in (temp_path, cut_path):
+        for path in (temp_path, work_path, cut_path):
             try:
                 path.unlink(missing_ok=True)
             except OSError:
                 pass
-
 
 def run_castria_download(channel: Channel, force: bool = False) -> None:
     """Sync one ``castria:`` channel into PodQueue's downloads/feeds."""
@@ -659,9 +672,16 @@ def run_castria_download(channel: Channel, force: bool = False) -> None:
         return
 
     episodes.sort(key=lambda e: str(e.get("pubDate") or ""), reverse=True)
+    def _is_episode_done(ep_id: str) -> bool:
+        if not ep_id:
+            return False
+        if ep_id in archive_set:
+            return True
+        return (download_dir / f"{ep_id}.mp3").exists() and (download_dir / f"{ep_id}.info.json").exists()
+
     pending = [
         e for e in episodes
-        if e.get("id") not in archive_set and not (download_dir / f"{e['id']}.mp3").exists()
+        if not _is_episode_done(e.get("id"))
     ][:channel.limit]
 
     if pending:

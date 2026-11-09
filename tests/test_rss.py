@@ -109,3 +109,30 @@ def test_rss_local_artwork_detection_fallback(tmp_path):
         itunes_image = root.find(".//{http://www.itunes.com/dtds/podcast-1.0.dtd}image")
         assert itunes_image is not None
         assert itunes_image.attrib.get("href") == "http://localhost:8000/artwork/ArtFeed.jpg"
+
+def test_rss_fallback_title_when_info_json_missing(tmp_path):
+    downloads_dir = tmp_path / "downloads"
+    feeds_dir = tmp_path / "feeds"
+    artwork_dir = tmp_path / "artwork"
+
+    downloads_dir.mkdir()
+    feeds_dir.mkdir()
+    artwork_dir.mkdir()
+
+    feed_dir = downloads_dir / "OrphanFeed"
+    feed_dir.mkdir()
+    (feed_dir / "ep-orphan-123.mp3").write_bytes(b"audio-bytes")
+
+    with patch.object(settings, "DOWNLOADS_DIR", downloads_dir), \
+         patch.object(settings, "FEEDS_DIR", feeds_dir), \
+         patch.object(settings, "ARTWORK_DIR", artwork_dir), \
+         patch.object(settings, "BASE_URL", "http://localhost:8000"):
+        generate_rss("OrphanFeed", feed_dir)
+
+        tree = ET.parse(feeds_dir / "OrphanFeed.xml")
+        root = tree.getroot()
+        item = root.find(".//item")
+        assert item is not None
+        title = item.find("title")
+        assert title is not None
+        assert title.text == "ep-orphan-123"

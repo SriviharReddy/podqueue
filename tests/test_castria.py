@@ -15,6 +15,7 @@ from podqueue.core.castria import (
     run_castria_download,
 )
 from podqueue.core.downloader import run_download_job
+from podqueue.utils.castria_align import AlignerError
 
 
 def test_is_castria_url():
@@ -494,3 +495,81 @@ def test_resolve_gaps_still_uses_crowd_skipmap_for_over_long_episodes(tmp_path):
     assert gaps == [(0.0, 30.0), (500.0, 560.0)]
     assert source == "skipplan"
     m_align.assert_not_called()
+
+def test_resolve_gaps_reports_failed_when_chunked_alignment_fails(tmp_path):
+    from podqueue.core.castria import _resolve_gaps
+
+    audio = tmp_path / "long.mp3"
+    audio.write_bytes(b"x")
+    episode = {"id": "ep-fail", "showFingerprintAvailable": True}
+
+    with patch.object(settings, "CASTRIA_ALIGN_ENABLED", True), \
+         patch.object(settings, "CASTRIA_ALIGN_CHUNKING_ENABLED", True), \
+         patch.object(settings, "CASTRIA_MAX_ALIGN_DURATION_SECONDS", 7200), \
+         patch("podqueue.core.castria.get_audio_duration_seconds", return_value=10113.0), \
+         patch("podqueue.core.castria.run_aligner_chunked", side_effect=AlignerError("OOM")):
+        gaps, source, _meta = _resolve_gaps(_StubClient(), episode, audio)
+
+    assert gaps == []
+    assert source == "failed"
+
+
+def test_run_castria_download_retries_incomplete_episode(tmp_path):
+    """An episode with an existing mp3 but missing info.json must be re-processed."""
+    _FakeClient.episodes = [_episode()]
+    channel = Channel(id="TestCastriaIncomplete", url="castria:sub-1", limit=5)
+
+    chan_dir = tmp_path / "downloads" / "TestCastriaIncomplete"
+    chan_dir.mkdir(parents=True, exist_ok=True)
+    # Create leftover un-cut mp3 without info.json
+    (chan_dir / "ep-1.mp3").write_bytes(b"RAW-UNCUT-AUDIO")
+
+    def fake_cut(src, dst, gaps, **kwargs):
+        Path(dst).write_bytes(b"CUT-AUDIO")
+        return True
+
+    patches = _settings_patches(tmp_path)
+    with patch("podqueue.core.castria.CastriaClient", _FakeClient), \
+         patch("podqueue.core.castria.requests.get", return_value=_fake_http_response()), \
+         patch("podqueue.core.castria.run_aligner", return_value=[(0.0, 160.4)]) as m_align, \
+         patch("podqueue.core.castria.cut_audio_segments", side_effect=fake_cut) as m_cut, \
+         patch("podqueue.core.castria.get_audio_duration_seconds", return_value=914.68), \
+         patch("podqueue.core.castria.get_audio_duration", return_value=400), \
+         patch("podqueue.core.downloader.cleanup_old_episodes"), \
+         patch("podqueue.core.downloader.cleanup_leftovers"):
+        for p in patches:
+            p.start()
+        try:
+            (tmp_path / "state").mkdir(parents=True, exist_ok=True)
+            run_castria_download(channel, force=True)
+        finally:
+            for p in patches:
+                p.stop()
+
+    dest = chan_dir / "ep-1.mp3"
+    assert dest.exists()
+    assert dest.read_bytes() == b"CUT-AUDIO"
+    assert (chan_dir / "ep-1.info.json").exists()
+    assert "castria ep-1" in (chan_dir / "archive.txt").read_text()
+    m_align.assert_called_once()
+    m_cut.assert_called_once()
+
+
+def test_process_episode_does_not_leave_dest_on_failure(tmp_path):
+    """If ad removal or processing crashes, dest_path must not be left behind without info.json."""
+    from podqueue.core.castria import _process_episode
+
+    chan_dir = tmp_path / "downloads" / "CrashShow"
+    chan_dir.mkdir(parents=True, exist_ok=True)
+    archive = chan_dir / "archive.txt"
+    channel = Channel(id="CrashShow", url="castria:sub-1", limit=5)
+    episode = _episode(id="ep-crash")
+
+    client = _FakeClient()
+    with patch("podqueue.core.castria.requests.get", return_value=_fake_http_response()), \
+         patch("podqueue.core.castria._resolve_gaps", side_effect=RuntimeError("unexpected crash")):
+        _process_episode(client, channel, episode, chan_dir, archive)
+
+    assert not (chan_dir / "ep-crash.mp3").exists()
+    assert not (chan_dir / "ep-crash.work.mp3").exists()
+    assert not (chan_dir / "ep-crash.info.json").exists()
